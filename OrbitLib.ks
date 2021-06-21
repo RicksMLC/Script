@@ -38,7 +38,7 @@ function CreateHohmannTransferNodes {
 	// https://en.wikipedia.org/wiki/Vis-viva_equation
 	// The base Hohmann transfer assumes transitioning from one circular orbit to another.
 	// In the real world of Kerbin, a perfectly circlular orbit is difficult to do, so the real
-	// starting orbit will probably be parabolic ie (the PE and AP will be different).
+	// starting orbit will probably be elliptic ie (the PE and AP will be different).
 	// To adjust for this the current difference in velocity between the ideal circular orbit
 	// and current orbit at the xferNodePoint is calculated and subtracted to the transfer orbit dV.
 	// 

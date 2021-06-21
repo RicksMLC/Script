@@ -1,5 +1,5 @@
 // OrbitLib.ksp
-// <name>
+// Rick's Mid-Life Crisis.
 // Some functions to help with orbits.
 
 function VisVivaDeltaV1 {

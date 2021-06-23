@@ -1,4 +1,10 @@
 // rp-1-EngineFailures.ks library.
+// Usage: RunMultiEngineStage([isVerbose])
+// Pre: Engines are already running eg:
+//          stage.
+//          RunMultiEngineStage(false)
+// Engines are kOS tagged as "S2-Ea-n" and S2-Eb-n" where n is the engine number in the group.
+// Currently only handles a pair of engine groups.
 
 function CheckForEngineFailures {
     parameter engines.
@@ -6,8 +12,9 @@ function CheckForEngineFailures {
     for e in engines {
         // Detect if engine loses performance or shuts down.
         if e:thrust < e:maxthrust * 0.9 or e:thrust = 0 {
-            print "Engine " + e:name + " '" + e:tag 
-                + "' shutdown detected."
+            local reason is choose "shutdown detected." if e:thrust = 0 else " performance loss.".
+            print "Engine " + e:name + " '" + e:tag + "'"
+                + reason
                 + " thrust:" + round(e:thrust, 4) + " maxthrust:" + round(e:maxthrust, 4).
             for e in engines {
                 print "   Shutting down "+ e:name + " '" + e:tag + "'".
@@ -21,11 +28,8 @@ function CheckForEngineFailures {
 }
 
 function RunMultiEngineStage {
-    parameter engineSpoolUpTime is 1.
     parameter verbose is false.
 
-    wait engineSpoolUpTime.
-    
     // TODO: parameterise to allow more than two groups.
     declare eAs to ship:partstaggedpattern("^S2-Ea").
     if verbose {

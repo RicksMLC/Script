@@ -5,7 +5,7 @@
 wait until ship:unpacked.
 core:DoEvent("open terminal").
 print "rp-1-auto.ks running...".
-set ksList to list("psLib", "RP-1/rp-1-EngineFailures", "RP-1/rp-1-LaunchControl").
+set ksList to list("psLib", "RP-1/rp-1-EngineFailures", "RP-1/rp-1-MultiEngineTest").
 set runList to "".
 for ks in ksList {
     deletepath(ks + ".ks").

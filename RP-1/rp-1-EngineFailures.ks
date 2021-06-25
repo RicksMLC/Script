@@ -11,8 +11,11 @@ function CheckForEngineFailures {
     local isShutdown is false.
     for e in engines {
         // Detect if engine loses performance or shuts down.
-        if e:thrust < e:maxthrust * 0.9 or e:thrust = 0 {
-            local reason is choose "shutdown detected." if e:thrust = 0 else " performance loss.".
+        if e:thrust < e:maxthrust * 0.9 or e:thrust = 0 or e:maxthrust = 0 {
+            local reason is 
+                choose "shutdown detected." 
+                    if e:thrust = 0 
+                    else choose "lost engine." if e:maxthrust = 0 else " performance loss.".
             print "Engine " + e:name + " '" + e:tag + "'"
                 + reason
                 + " thrust:" + round(e:thrust, 4) + " maxthrust:" + round(e:maxthrust, 4).
@@ -28,14 +31,18 @@ function CheckForEngineFailures {
 }
 
 function RunMultiEngineStage {
+    parameter stagePrefix.
     parameter verbose is false.
 
+    local expr is "^" + stagePrefix + "-Ea".
+
     // TODO: parameterise to allow more than two groups.
-    declare eAs to ship:partstaggedpattern("^S2-Ea").
+    declare eAs to ship:partstaggedpattern(expr).
     if verbose {
         print eAs.
     }
-    declare eBs to ship:partstaggedpattern("^S2-Eb").
+    set expr to "^" + stagePrefix + "-Eb".
+    declare eBs to ship:partstaggedpattern(expr).
     if verbose {
         print eBs.
     }
@@ -62,17 +69,21 @@ function RunMultiEngineStage {
                 set n to n + 1.
             }
         }
-
-        set isShutdownA to CheckForEngineFailures(eAs).
-        if isShutdownA {
-            print "Engine Group A is shut down.".
-            eAs:Clear().
+        if not isShutdownA {
+            set isShutdownA to CheckForEngineFailures(eAs).
+            if isShutdownA {
+                print "Engine Group A is shut down.".
+                eAs:Clear().
+            }
         }
-        set isShutdownB to CheckForEngineFailures(eBs).
-        if isShutdownB {
-            print "Engine Group B is shut down.".
-            eBs:Clear().
+        if not isShutdownB {
+            set isShutdownB to CheckForEngineFailures(eBs).
+            if isShutdownB {
+                print "Engine Group B is shut down.".
+                eBs:Clear().
+            }
         }
         wait 0.001.
     }
+    print "All Engines are Shutdown.".
 }

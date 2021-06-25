@@ -6,7 +6,8 @@
 wait until ship:unpacked.
 
 clearscreen.
-print "FirstUnboxing.ks: Test the kOS cardboard box contains a machine.".
+print "CX-4181-FirstUnboxing.ks  Ver 1.1".
+print "Test that the kOS cardboard box contains a machine in all that popcorn padding.".
 
 // Get the part:
 set pList to ship:partsdubbed("kOSMachine1m").
@@ -15,8 +16,12 @@ set testModule to testPart:GETMODULE("ModuleTestSubject").
 
 print "Test part: " + testPart:Name + " Test module details:".
 print testModule.
-
-// Verify the self test works:
-testModule:DOEVENT("run test").
-
-print "DoEvent 'run test' complete.".
+print "Run the test (y):".
+if terminal:input:getchar() = "y" {
+    // Verify the self test works:
+    print "Running test:".
+    testModule:DOEVENT("run test").
+    print "DoEvent 'run test' complete.".
+} else {
+    print "Test aborted.".
+}

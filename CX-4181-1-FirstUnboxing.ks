@@ -1,4 +1,5 @@
-// FirstUnboxing.ks
+// CX-4181-1-FirstUnboxing.ks
+// This script satisfies the first RMLC kOS contract.
 // Remove the shrink-wrap and run the self-test on the launch pad.
 // This is co-ordinated with the Contract Configurator kOS CX-4181 Self-Test contract.
 // CMD: 
@@ -6,7 +7,7 @@
 wait until ship:unpacked.
 
 clearscreen.
-print "CX-4181-FirstUnboxing.ks  Ver 1.1".
+print "CX-4181-1-FirstUnboxing.ks  Ver 1.1".
 print "Test that the kOS cardboard box contains a machine in all that popcorn padding.".
 
 // Get the part:

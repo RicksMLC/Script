@@ -1,10 +1,11 @@
-// LaunchAndRecoverTest.ks
+// CX-4181-3-LRT.ks
+// Launch and Recover Test.
 
 wait until ship:unpacked.
 clearscreen.
 
 lock throttle to 1.0. // 1.0 is the max, 0.0 is idle.
-print "LaunchAndRecoverTest.ks".
+print "CX-4181-LRT.ks".
 
 print "Counting down:".
 from {local countdown is 10.} until countdown = 0 step {set countdown to countdown -1.} do {

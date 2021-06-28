@@ -157,19 +157,30 @@ function ExecManoevourNodeSimple {
 	//
 	set burn_duration to nd:deltav:mag/max_acc.
 	print "Crude Estimated burn duration: " + round(burn_duration) + "s".
-
+	PrintStatus(0, "Node ETA", nd:eta).
 	// Wait until before the eta - (1/2 the burn time + 60s to allow for slow turning.
-	wait until nd:eta <= (burn_duration/2 + 60).
+	until nd:eta <= (burn_duration/2 + 60) {
+		PrintStatus(1, "Start turn at eta - " + round((burn_duration/2 + 60), 1) + "s", round(nd:eta - (burn_duration/2 + 60), 1)).
+		wait 0.001.
+	}
+	PrintStatus(1, "Lining up for node", nd:eta).
 
 	// Time to line up the ship to the deltav vector.
 	local np is nd:deltav. //points to node, don't care about the roll direction.
 	lock steering to np.
 
 	// now we need to wait until the burn vector and ship's facing are aligned
-	wait until vang(np, ship:facing:vector) < 0.25.
+	local targetVang is round(vang(np, ship:facing:vector) - 0.25, 2).
+	until vang(np, ship:facing:vector) < 0.25 {
+		PrintPairStatus(2, "Turn to ", targetVang, " cur", vang(np, ship:facing:vector)).
+		wait 0.001.
+	}
 
 	// the ship is facing the right direction, let's wait for our burn time
-	wait until nd:eta <= (burn_duration/2).
+	until nd:eta <= (burn_duration/2) {
+		PrintPairStatus(3, "Wait for burn.  ETA", round(nd:eta, 1), "Start burn", round(nd:eta - (burn_duration/2), 1) + "s").
+		wait 0.001.
+	}
 
 	// we only need to lock throttle once to a certain variable in the beginning of the
 	// loop, and adjust only the variable itself inside it.

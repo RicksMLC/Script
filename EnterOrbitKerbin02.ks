@@ -106,7 +106,7 @@ IF STATUS = "PRELAUNCH" {
 	Print "Current velocity: " + round(SHIP:VELOCITY:ORBIT:MAG).
 	Print "Velocity at AP:" + round(VELOCITYAT(SHIP, TIME:Seconds + ETA:APOAPSIS):ORBIT:MAG).
 	
-	LOCAL Vo is CalcOrbitalVelocity("Kerbin", orbitAltitiude).
+	LOCAL Vo is CalcOrbitalVelocity(SHIP:BODY, orbitAltitiude).
 	print "Calculated Vo: " + Vo.
 	
 	LOCAL mnDeltaV is Vo - VELOCITYAT(SHIP, TIME:Seconds + ETA:APOAPSIS):ORBIT:MAG.
@@ -125,17 +125,18 @@ IF STATUS = "PRELAUNCH" {
 		print "ExecManoevourNodeSimple execute".
 		ExecManoevourNodeSimple().
 	}
-	
 
 	// De-orbit
-	wait 20.
-	Print "De-orbit commence".
-	wait 4.
-	lock throttle to 1.
-	until SHIP:OBT:PERIAPSIS < -20 {
-		LOCK STEERING to SHIP:RETROGRADE.
+	print "Auto DeOrbit?(y):".
+	if terminal:input:getchar() = "y" {
+		Print "De-orbit commence".
+		wait 4.
+		lock throttle to 1.
+		until SHIP:OBT:PERIAPSIS < -20 {
+			LOCK STEERING to SHIP:RETROGRADE.
+		}
+		lock throttle to 0.
 	}
-	lock throttle to 0.
 	
 	//This sets the user's throttle setting to zero to prevent the throttle
 	//from returning to the position it was at before the script was run.

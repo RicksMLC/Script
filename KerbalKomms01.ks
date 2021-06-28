@@ -40,17 +40,18 @@ set targetAltitude to KeostationaryOrbit.
 set DeOrbit to false.
 print "DeOrbit is " + DeOrbit.
 
-//set orbitAltitiude to KeostationaryOrbit. 
-set orbitAltitiude to TestLowOrbit.
+set orbitAltitiude to KeostationaryOrbit. 
+//set orbitAltitiude to TestLowOrbit.
 
 set prevStatus to STATUS.
+
+runoncepath("OrbitLib.ks").
 
 // For safety reasons...
 IF STATUS = "PRELAUNCH" {
 	if not exists("OrbitLib.ks") {
 		copypath("0:/OrbitLib.ks", "").
 	}
-	runoncepath("OrbitLib.ks").
 
 	print "Counting down:".
 	from {local countdown is 10.} until countdown = 0 step {set countdown to countdown -1.} do {

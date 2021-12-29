@@ -15,11 +15,9 @@
 // Test and verification:
 //  [ ] Craft enters orbit at required altitude.
 //	[ ] Deorbit executed
-//  [ ] 
+//  [ ] Chutes deployed
 
 set autoDeOrbit to true.
-set throt to 1.0.
-lock throttle to throt. // 1.0 is the max, 0.0 is idle.
 set orbitAltitude to 80000.
 set lastStageNum to 2.
 set targetRadius to orbitAltitude + KERBIN:radius.
@@ -35,8 +33,23 @@ function SetAllAntennasOn {
 	for antenna in antennas {
 		// Check for non-RemoteTech?
 		set am to antenna:getmodule("ModuleRTAntenna").
-		print (choose "A" if activate else "Dea") + "ctivating antenna '" + antenna:name + "'".
-		am:DoAction("activate", activate).
+		set eventName to (choose "A" if activate else "Dea") +"ctivate".
+		print eventName + "ing antenna '" + antenna:name + "'".
+		am:DoEvent(eventName).
+	}
+}
+
+function DeployFairing {
+	parameter tag.
+	set fairings to ship:partstagged(tag).
+	if fairings:empty {
+		print "DeployFairing fail: No tagged '" + tag + "' parts.".
+		return.
+	}
+	for fairing in fairings {
+		set fm to fairing:getmodule("ModuleProceduralFairing").
+		print "Deploying fairing".
+		fm:DoEvent("deploy").
 	}
 }
 
@@ -53,18 +66,22 @@ function StageOnFlameoutCheck {
 	}
 }
 
+set autoAntenna to not Career():CanDoActions.
+if not autoAntenna {
+	print "Warning: No kOS Antenna activations. Career limit (actions not available).".
+	print "         Remember to set antennas manually.".
+}
+
 // For safety reasons...
 IF SHIP:STATUS = "PRELAUNCH" {
+	set throt to 1.0.
+	lock throttle to throt. // 1.0 is the max, 0.0 is idle.
+
 	// Preflight check
 	PrintStatus(0, "Pre-launch checks", SHIP:STATUS, true).
 	if not Career():CanMakeNodes {
 		PRINT "Doomed to Fail: Career limits prevent creation of nodes".
 		abort.
-	}
-	set autoAntenna to not Career():CanDoActions.
-	if not autoAntenna {
-		print "Warning: No kOS Antenna activations. Career limit (actions not available).".
-		print "         Remember to set antennas manually."
 	}
 
     lock unClamped to (ship:partsnamed("launchClamp1"):empty).
@@ -87,8 +104,8 @@ IF SHIP:STATUS = "PRELAUNCH" {
 	}.
 
 } // End STATUS = "PRELAUNCH"
-
-if SHIP:STATUS = "FLIGHT" {
+print "Ship Status: " + SHIP:STATUS.
+if SHIP:STATUS = "FLYING" {
     print "Liftoff!".
     PrintStatus(0, "Liftoff", SHIP:STATUS).
 	wait 3.
@@ -112,25 +129,27 @@ if SHIP:STATUS = "FLIGHT" {
 	function SetHeadingAndThrottle {
 		parameter azimuth.
 		parameter t.
-		set mySteer to HEADING(90, azimuth).
+		if azimuth = "P" {
+			lock mySteer to PROGRADE.
+		} else {
+			set mySteer to HEADING(90, azimuth).
+		}
 		set throt to t.
 		PrintPairStatus(4, "Heading", "Pitching to " + azimuth + " deg.", "Throttle", round(throt, 2)).
 	}
 
 	function PrintNextEntry {
-		PrintStatus(6, "Next", azList[idx][1] + " deg, throttle " + round(azList[idx][2],2) + " at " + azList[idx][0] + "m").
+		PrintStatus(5, "Next", azList[idx][1] + " deg, throttle " + round(azList[idx][2],2) + " at " + azList[idx][0] + "m").
 	}
 
 	// Launch azimuth profile (alt, az, throttle)
 	set azList to list(
 		list(  250, 85, 1.0),
 		list( 1000, 80, 1.0),
-		list( 6000, 75, 1.0),
-		list(15000, 70, 1.0),
-		list(20000, 60, 1.0),
-		list(28000, 45, 0.75),
-		list(33000, 10, 0.75),
-		list(55000,  0, 0.75),
+		list( 4000, 70, 1.0),
+		list( 6000, 60, 1.0),
+		list(10000, 45, 1.0),
+		list(15000, "P", 1.0),
 		list(orbitAltitude, 0, 0)
 	).
 	set idx to 0.
@@ -145,7 +164,7 @@ if SHIP:STATUS = "FLIGHT" {
 		}
 		StageOnFlameoutCheck().
 		PrintStatus(7, "Altitude", round(ship:altitude) + "m").
-        PrintStatus(8, "Ap", round(SHIP:APOAPSIS, 0) + "m", "ETA", SHIP:OBT:ETA + "s").
+        PrintPairStatus(8, "Ap", round(SHIP:APOAPSIS, 0) + "m", "ETA", round(SHIP:OBT:ETA:APOAPSIS, 2) + "s").
 		wait 0.001.
 	}
 
@@ -153,7 +172,11 @@ if SHIP:STATUS = "FLIGHT" {
 
 	LOCK THROTTLE TO 0.
 
+	wait until ship:altitude > 65000.
+	DeployFairing("fairing").
+
 	wait until ship:altitude > 70000.
+	kuniverse:timewarp:CancelWarp().
 
 	if autoAntenna {
 		SetAllAntennasOn(true).
@@ -172,18 +195,32 @@ if SHIP:STATUS = "FLIGHT" {
 		}
 	}
 	LOCK THROTTLE TO 0.
+	wait 1. // wait to settle down for deltav duration calc.
 
    	CreateCircularOrbitNode(orbitAltitude).
-   	ExecManoevourNodeSimple().
+   	//ExecManoevourNodeSimple().
+	ExecManoeuvreNode().
 
 	//This sets the user's throttle setting to zero to prevent the throttle
 	//from returning to the position it was at before the script was run.
 	SET SHIP:CONTROL:PILOTMAINTHROTTLE TO 0.
 
-} // end IF STATUS = "prelaunch"
+} // end IF STATUS = "flying"
+
 
 if STATUS = "ORBITING" {
+	PSClearPrevStats().
+	PrintStatus(0, "Status", STATUS).
     if autoDeOrbit = True {
+		if not HOMECONNECTION:ISCONNECTED {
+			print "LOS.".
+			LOCK THROTTLE TO 0.
+			print "Throttle locked to 0 for safety.".
+			print "... waiting for comms.".
+		}
+		wait until HOMECONNECTION:ISCONNECTED.
+		kuniverse:timewarp:CancelWarp().
+		print "Comms OK.".
         deletepath("OrbitLib.ks").
         if not exists("DeOrbitLib.ks") {
             copypath("0:/DeOrbitLib.ks", "").
@@ -201,4 +238,4 @@ if STATUS = "ORBITING" {
 	}
 }
 
-print "Program Terminated - you are on your own now.".
+print "AutoTour03 Program Complete - you are on your own now.".

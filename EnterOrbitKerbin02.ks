@@ -12,6 +12,34 @@
 //			[ ] Low orbit and transition to high orbit
 //		[ ] 
 
+function NodeAndBurn {
+	parameter targetObtAlt.
+		// Now to set up the maneuver node for orbit...
+	Print "Time: " + TIME:Seconds + ". Ship AP ETA: " + round(ETA:APOAPSIS, 2).
+	Print "Current velocity: " + round(SHIP:VELOCITY:ORBIT:MAG).
+	Print "Velocity at AP:" + round(VELOCITYAT(SHIP, TIME:Seconds + ETA:APOAPSIS):ORBIT:MAG).
+	
+	LOCAL Vo is CalcOrbitalVelocity(SHIP:BODY, targetObtAlt).
+	print "Calculated Vo: " + Vo.
+	
+	LOCAL mnDeltaV is Vo - VELOCITYAT(SHIP, TIME:Seconds + ETA:APOAPSIS):ORBIT:MAG.
+	
+	Print "DeltaV: " + mnDeltaV.
+	local timeToApoapsis is ETA:APOAPSIS.
+	LOCAL orbitNode is NODE(TimeSpan(timeToApoapsis), 0, 0, mnDeltaV).
+	ADD orbitNode.
+
+	print "Maxthrust: " + MAXTHRUST  AT(30,0).
+
+	// OrbitLib.ks to execute the node
+	if MAXTHRUST = 0 {
+		print "Why, oh why, is maxthrust 0?".
+	} else {
+		print "Execute Manoeuvre Node".
+		PSClearPrevStats().
+		ExecManoeuvreNode().
+	}
+}
 
 clearscreen.
 
@@ -19,7 +47,14 @@ lock throttle to 1.0. // 1.0 is the max, 0.0 is idle.
 
 print "EnterOrbitKerbin02.ks".
 set KeostationaryOrbit to 2863330.
-set TestLowOrbit to 100000.
+set TestLowOrbit to 101000.
+
+if not Career():CanMakeNodes {
+	print "Career limited: Unable to make Maneuver Nodes.".
+	print "Upgrade the Tracking Station and Mission Control to unlock.".
+	print "Aborting launch.".
+	SHUTDOWN.
+}
 
 //set orbitAltitiude to KeostationaryOrbit. 
 set orbitAltitiude to TestLowOrbit.
@@ -27,6 +62,7 @@ set orbitAltitiude to TestLowOrbit.
 set mySteer to HEADING(90, 90). // 90 degrees = East. 90 = straight up.
 
 runoncepath("0:/OrbitLib.ks").
+print "STATUS:" + STATUS.
 
 // For safety reasons...
 IF STATUS = "PRELAUNCH" {
@@ -101,31 +137,21 @@ IF STATUS = "PRELAUNCH" {
 	}
 	LOCK THROTTLE TO 0.
 
-	// Now to set up the maneuver node for orbit...
-	Print "Time: " + TIME:Seconds + ". Ship AP ETA: " + ETA:APOAPSIS.
-	Print "Current velocity: " + round(SHIP:VELOCITY:ORBIT:MAG).
-	Print "Velocity at AP:" + round(VELOCITYAT(SHIP, TIME:Seconds + ETA:APOAPSIS):ORBIT:MAG).
-	
-	LOCAL Vo is CalcOrbitalVelocity(SHIP:BODY, orbitAltitiude).
-	print "Calculated Vo: " + Vo.
-	
-	LOCAL mnDeltaV is Vo - VELOCITYAT(SHIP, TIME:Seconds + ETA:APOAPSIS):ORBIT:MAG.
-	
-	Print "DeltaV: " + mnDeltaV.
-	SET timeToApoapsis to ETA:APOAPSIS.
-	LOCAL orbitNode is NODE(TimeSpan(timeToApoapsis), 0, 0, mnDeltaV).
-	ADD orbitNode.
+	wait 0.1. // Allow to settle so the orbitlib calculations are stable.
 
-	print "Maxthrust: " + MAXTHRUST  AT(30,0).
+	NodeAndBurn(orbitAltitiude).
+}
 
-	// OrbitLib.ks to execute the node
-	if MAXTHRUST = 0 {
-		print "Why, oh why, is maxthrust 0?".
-	} else {
-		print "ExecManoevourNodeSimple execute".
-		ExecManoevourNodeSimple().
+if STATUS = "ORBITING" {
+	lock throttle to 0.
+	print "Checking Pe: " + round(SHIP:OBT:PERIAPSIS, 2) + " target: " + round(orbitAltitiude, 2).
+	if SHIP:OBT:PERIAPSIS < orbitAltitiude {
+		print "Correcting orbit.  Create and Execute node? (y)".
+		if terminal:input:getchar() = "y" {
+			print "NodeAndBurn(" + round(orbitAltitiude) + ") executing.".
+			NodeAndBurn(orbitAltitiude).
+		}
 	}
-
 	// De-orbit
 	print "Auto DeOrbit?(y):".
 	if terminal:input:getchar() = "y" {
@@ -141,5 +167,5 @@ IF STATUS = "PRELAUNCH" {
 	//This sets the user's throttle setting to zero to prevent the throttle
 	//from returning to the position it was at before the script was run.
 	SET SHIP:CONTROL:PILOTMAINTHROTTLE TO 0.
-
 }
+print "Program end.".

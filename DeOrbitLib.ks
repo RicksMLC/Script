@@ -15,7 +15,8 @@ function DeOrbitAtm {
 	set retroDirection to ship:retrograde.
 	lock steering to retroDirection.
 	wait 8.
-	until PERIAPSIS < targetPE {
+	// FIXME: handle out of fuel before targetPE reached.
+	until PERIAPSIS < targetPE or altitude < 70000 {
 		set retroDirection to ship:retrograde.
 		lock throttle to 1.
 		wait 0.001.
@@ -33,9 +34,14 @@ function DeOrbitAtm {
 	print "Waiting until altitude is below atm height " + (ship:body:atm:height-100).
 	wait until ALT:RADAR < (ship:body:atm:height-100).
 
+	kuniverse:timewarp:CancelWarp().
+	
+	// This is a WHEN trigger... return is the return out of the WHEN, not the enclosing function.
 	WHEN (not CHUTESSAFE) THEN {
 		CHUTESSAFE ON.
 		RETURN (NOT CHUTES).
 	}
+	print "ChutesSafe On.".
 	wait until CHUTES.
+	print "Chutes deployed.".
 }

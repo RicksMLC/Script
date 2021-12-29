@@ -1,11 +1,11 @@
-// AutoLoadTour.ks
+// AutoKomms.ks
 
 wait until ship:unpacked.
 core:DoEvent("open terminal").
 
-print "AutoTourLoad.ks running...".
+print "AutoKomms.ks running...".
 
-local ksList is list("psLib", "OrbitLib", "AutoTour03").
+local ksList is list("psLib", "OrbitLib", "KerbalKomms01").
 local reloadLibs is true.
 if not HOMECONNECTION:ISCONNECTED {
     print "No comms connection available. Running with existing libraries.".

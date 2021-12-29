@@ -1,4 +1,4 @@
-//L-R-02.ks : Launch And Recover side booster test
+//L-R-02.ks : Launch And Recover booster test
 
 wait until ship:unpacked.
 

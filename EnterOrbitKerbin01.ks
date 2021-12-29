@@ -21,6 +21,13 @@ print "EnterOrbitKerbin01.ks: Target alt:" + round(orbitAltitude/1000, 3) + "km"
 set col to 0.
 set line to 1.
 
+if not Career():CanMakeNodes {
+	print "Career limited: Unable to make Maneuver Nodes.".
+	print "Upgrade the Tracking Station and Mission Control to unlock.".
+	print "Aborting launch.".
+	SHUTDOWN.
+}
+
 // For safety reasons...
 IF STATUS = "PRELAUNCH" {
 

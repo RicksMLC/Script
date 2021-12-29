@@ -3,7 +3,7 @@
 // Remove the shrink-wrap and run the self-test on the launch pad.
 // This is co-ordinated with the Contract Configurator kOS CX-4181 Self-Test contract.
 // CMD: 
-//   run "0:/FirstUnboxing.ks".
+//   run "0:/CX-4181-1-FirstUnboxing.ks".
 wait until ship:unpacked.
 
 clearscreen.

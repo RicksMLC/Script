@@ -2,7 +2,6 @@
 // Flight Verification Test.
 
 wait until ship:unpacked.
-clearscreen.
 
 print "CX-4181-2-FVT.ks".
 
@@ -14,8 +13,7 @@ from {local countdown is 10.} until countdown = 0 step {set countdown to countdo
 
 // This is a trigger that constantly checks to see if our thrust is zero.
 // If it is, it will attempt to stange and then return to where the script
-// left off.  The PRESERVE keyword keeps the trigger active even after it
-// has been triggered.
+// left off.  The PRESERVE keyword keeps the trigger active after it has been triggered.
 when MAXTHRUST = 0 then {
 	print "Staging".
 	stage.

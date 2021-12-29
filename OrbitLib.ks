@@ -2,6 +2,25 @@
 // Rick's Mid-Life Crisis.
 // Some functions to help with orbits.
 
+function StageOnFlameoutCheck {
+    // Check for engine flameout:
+    list ENGINES in engList.
+    for eng in engList {
+		if eng:flameout {
+			wait until stage:ready.
+			print "Flameout STAGING " + stage:NUMBER.
+			STAGE.
+			wait until stage:ready.
+			if maxthrust = 0 {
+				stage.
+				wait until stage:ready.
+			}
+			return.
+		}
+	}
+}
+
+
 function VisVivaDeltaV1 {
 	// VisViva is:
 	// v^2 = mu(2/r - 1/a)
@@ -47,15 +66,19 @@ function CreateHohmannTransferNodes {
 	parameter targetAlt.
 	parameter startAltitude is SHIP:OBT:PERIAPSIS.
 	parameter targetBody is SHIP:BODY.
+	parameter etaToNode is -1.
 	parameter verbose is false.
 
-	// Default to transition to a higher orbit.
-	LOCAL timeToXferNodePoint IS ETA:PERIAPSIS.
+	LOCAL timeToXferNodePoint IS etaToNode.
 	LOCAl xferPt IS "pe".
-	if targetAlt < startAltitude {
-		// We are transitioning to a lower orbit.
-		SET timeToXferNodePoint TO ETA:APOAPSIS.
-		set xferPt to "ap".
+	if etaToNode = -1 {
+		// Default to transition to a higher orbit.
+		set timeToXferNodePoint to ETA:PERIAPSIS.
+		if targetAlt < startAltitude {
+			// We are transitioning to a lower orbit.
+			SET timeToXferNodePoint TO ETA:APOAPSIS.
+			set xferPt to "ap".
+		}
 	}
 	
 	// Correct for eccentricity of the current orbit
@@ -95,17 +118,15 @@ function CreateCircularOrbitNode {
 	parameter targetBody is SHIP:BODY.
 	parameter verbose is False.
 	
-	// Now to set up the maneuver node for orbit...
-	
-	LOCAL Vo IS CalcOrbitalVelocity(targetBody, orbitAltitude).
+	LOCAL Vo IS CalcOrbitalVelocity(targetBody, orbitAltitude, verbose).
 	LOCAL mnDeltaV IS Vo - VELOCITYAT(SHIP, TIME:Seconds + ETA:APOAPSIS):ORBIT:MAG.
 	
 	if verbose {
-		Print "Time: " + TIME:Seconds + ". Ship AP ETA: " + ETA:APOAPSIS.
-		Print "Current velocity: " + round(SHIP:VELOCITY:ORBIT:MAG).
-		Print "Velocity at AP:" + round(VELOCITYAT(SHIP, TIME:Seconds + ETA:APOAPSIS):ORBIT:MAG).
-		print "Calculated Vo: " + Vo.
-		Print "DeltaV: " + mnDeltaV.
+		Print "  Time: " + TIME:Seconds + ". Ship AP ETA: " + ETA:APOAPSIS.
+		Print "  Current velocity: " + round(SHIP:VELOCITY:ORBIT:MAG).
+		Print "  Velocity at AP:" + round(VELOCITYAT(SHIP, TIME:Seconds + ETA:APOAPSIS):ORBIT:MAG).
+		print "  Calculated Vo: " + Vo.
+		Print "  DeltaV: " + mnDeltaV.
 	}
 	LOCAL tToApoapsis IS ETA:APOAPSIS.
 	LOCAL orbitNode IS NODE(TimeSpan(tToApoapsis), 0, 0, mnDeltaV).
@@ -123,9 +144,13 @@ function CalcOrbitalVelocity {
 	
 	parameter bodyObj.
 	parameter requiredAltitude.
+	parameter isVerbose is false.
 	if not bodyexists(bodyObj:name) {
 		PRINT "CalcOrbitalVelocity(): Error: Body '" + bodyObj:Name + "' does not exist.".
 		RETURN 0.
+	}
+	if (isVerbose) {
+		print "CalcOrbitalVelocity(): mu: " + bodyObj:MU + " r " + bodyObj:RADIUS + " alt " + requiredAltitude.
 	}
 	LOCAL Vo IS sqrt(bodyObj:MU / (bodyObj:RADIUS + requiredAltitude)).
 	RETURN Vo.
@@ -160,7 +185,7 @@ function ExecManoevourNodeSimple {
 	PrintStatus(0, "Node ETA", nd:eta).
 	// Wait until before the eta - (1/2 the burn time + 60s to allow for slow turning.
 	until nd:eta <= (burn_duration/2 + 60) {
-		PrintStatus(1, "Start turn at eta - " + round((burn_duration/2 + 60), 1) + "s", round(nd:eta - (burn_duration/2 + 60), 1)).
+		PrintStatus(1, "Start turn at eta -" + round((burn_duration/2 + 60), 1) + "s", round(nd:eta - (burn_duration/2 + 60), 1)).
 		wait 0.001.
 	}
 	PrintStatus(1, "Lining up for node", nd:eta).
@@ -178,7 +203,7 @@ function ExecManoevourNodeSimple {
 
 	// the ship is facing the right direction, let's wait for our burn time
 	until nd:eta <= (burn_duration/2) {
-		PrintPairStatus(3, "Wait for burn.  ETA", round(nd:eta, 1), "Start burn", round(nd:eta - (burn_duration/2), 1) + "s").
+		PrintPairStatus(3, "Wait for burn.  ETA", round(nd:eta, 1), "Start burn", round(nd:eta - (burn_duration/2), 1) + "s", 5).
 		wait 0.001.
 	}
 
@@ -232,5 +257,180 @@ function ExecManoevourNodeSimple {
 	wait 1.
 
 	//we no longer need the maneuver node
+	remove nd.
+}
+
+function GetStageMass {
+	parameter parentPart.
+	local parameter lvl is 0.
+	//if lvl = 0 print "GetStageMass:".
+    //print round(lvl) + "":padleft(lvl) + "part: " + parentPart:name + " " + parentPart:CID + " drymass: " + parentPart:drymass.
+	local mSum is parentPart:mass.
+	for p in parentPart:children {
+		set mSum to mSum + GetStageMass(p, lvl + 1).
+	}
+	return mSum.
+}
+
+function ExecManoeuvreNode {
+	local nd is nextnode.
+	print "ExecManoeuvreNode in: " + round(nd:eta) + "s, DeltaV: " + round(nd:deltav:mag, 2) + "m".
+	
+	// Calculate the ship's max acceleration
+	LOCAL max_acc IS ship:MAXTHRUST / ship:mass.
+
+	print "stage dv: " + stage:deltav:current + "m/s " + stage:deltav:duration + "s".
+	local sDv is stage:deltaV. // ship:stagenum
+	local burnT is 0.
+	local maxAcc IS ship:MAXTHRUST / ship:mass.
+
+	if sDv:current > nd:deltav:mag {
+		print "curr stage enough".
+		set burnT to nd:deltav:mag / max_acc.
+	} else {
+		print "multi-stage needed".
+		local decoupler is stage:nextdecoupler.
+		local sMass is GetStageMass(decoupler).
+		local nextStageMass is ship:mass - sMass.
+		print "ship:mass: " + round(ship:mass, 3) + "t sMass: " + round(sMass, 3) + "t nextStageMass: " + round(nextStageMass, 3) + "t".
+
+		set burnT to sDv:duration.
+		print "Stage: " + stage:number + " " + burnT + "s" + " dvC: " + round(sDv:current, 3).
+		local remainDvMag is nd:deltav:mag - sDv:current.
+		// Another stage better be available.
+		local nextEngine is stage:nextdecoupler:parent.
+		print "Remaining dV: " + round(remainDvMag, 3).
+		// Tsiolkovsky rocket equation:
+		// 		dV = Ve * ln(m0 / mf) = ISPg0 * ln(m0/mf)
+		// Therefore to find the mass of fuel used to get dV
+		//		dV/ISPg0 = ln(m0 / mf)
+		//		e^(dV/ISPg0) = m0 / mf
+		//		mf * e^(dV/ISPg0) = m0
+		// 		mf = m0 / e^(dV/ISPg0).
+		local dVonISPg0 is remainDvMag / (nextEngine:VACUUMISP * CONSTANT:g0).
+		local m0 is ship:mass - sMass.
+		local mf is m0 / (CONSTANT:E ^ dVonISPg0).
+		local fuelMass is m0 - mf.
+		print "Expected last stage mass: 1.323t".
+		print "m0: " + round(m0, 4) + " mf: " + round(mf, 4) + " fuel: " + round(fuelMass, 4) + "t".
+		print "dVonISPg0: " + round(dVonISPg0, 3).
+		local mfBurnT is fuelMass / nextEngine:MaxMassFlow.
+		print "Engine MaxMassFlow(MMF): " + round(nextEngine:MaxMassFlow, 4) + " fuel / MMF => mfBurnT: " + round(mfBurnT, 3) + "s".
+		
+		print "Stage: " + nextEngine:stage + " " + mfBurnT + "s".
+		set burnT to burnT + mfBurnT. // add 0.25 stage time?
+	}
+	print "Calculated Burn Time " + burnT.
+
+
+	// Now we just need to divide deltav:mag by our ship's max acceleration
+	// to get the estimated time of the burn.
+	// TODO:
+	//   "Tsiolkovsky rocket equation".
+	set burn_duration to burnT.
+	set startBurnT to (burnT / 2).
+
+	print "Crude Estimated burn duration: " + round(burn_duration) + "s".
+	PrintStatus(0, "Node ETA", nd:eta).
+	// Wait until before the eta - (1/2 the burn time + 60s to allow for slow turning.
+	//until nd:eta <= (burn_duration + 60) {
+	//	PrintStatus(1, "Start turn at eta -" + round((burn_duration + 60), 1) + "s", round(nd:eta - (burn_duration + 60), 1)).
+	//	wait 0.001.
+	//}
+	//PrintStatus(1, "Lining up for node", nd:eta).
+
+	until nd:eta <= (startBurnT + 60) {
+		PrintStatus(1, "Start turn at eta -" + round((startBurnT + 60), 1) + "s", round(nd:eta - (startBurnT + 60), 1)).
+		wait 0.001.
+	}
+	PrintStatus(1, "Lining up for node", nd:eta).
+
+	// Time to line up the ship to the deltav vector.
+	local np is nd:deltav. //points to node, don't care about the roll direction.
+	//FIXME: What if we lock to nd:deltav instead?
+	//lock steering to np.
+	lock steering to nd:deltav.
+
+	// now we need to wait until the burn vector and ship's facing are aligned
+	local targetVang is round(vang(np, ship:facing:vector) - 0.25, 2).
+	until vang(np, ship:facing:vector) < 0.25 {
+		PrintPairStatus(2, "Turn to ", targetVang, " cur", vang(np, ship:facing:vector)).
+		wait 0.001.
+	}
+
+	// the ship is facing the right direction, let's wait for our burn time
+	until nd:eta <= (startBurnT) {
+		PrintPairStatus(3, "Wait for burn.  ETA", round(nd:eta, 1), "Start burn", round(nd:eta - (startBurnT), 1) + "s", 5).
+		wait 0.001.
+	}
+
+	local tset is 0.
+	lock throttle to tset.
+
+	local done is False.
+	//initial deltav
+	local dv0 is nd:deltav.
+	local nodeAP is nd:orbit:apoapsis.
+	local nodePE is nd:orbit:periapsis.
+	local targetIsAP is ship:obt:apoapsis < nodeAP. 
+
+	until done {
+
+		//recalculate current max_acceleration, as it changes while we burn through fuel
+		set max_acc to ship:maxthrust/ship:mass.
+		
+		StageOnFlameoutCheck().
+
+		PrintStatus(4, "Remain dV " + round(nd:deltav:mag,2) + "m/s, vdot: " + round(vdot(dv0,nd:deltav), 1)).
+		if targetIsAP {
+			PrintPairStatus(5, "Target AP", round(nodeAP, 2), "Curr AP", ship:obt:apoapsis).
+		} else {
+			PrintPairStatus(5, "Target PE", round(nodePE, 2), "Curr PE", ship:obt:periapsis).
+		}
+
+		// Staging during this phase may have 0 max_acc, which will cause divide by 0 error in nd:deltav:mag/max_acc
+		if max_acc > 0 {
+
+			//throttle is 100% until there is less than 1 second of time left to burn
+			//when there is less than 1 second - decrease the throttle linearly
+			set tset to min(nd:deltav:mag/max_acc, 1).
+
+			// here's the tricky part, we need to cut the throttle as soon as our nd:deltav and
+			// initial deltav start facing opposite directions
+			// this check is done via checking the dot product of those 2 vectors
+			if vdot(dv0, nd:deltav) < 0
+			{
+				print "End burn, remain dv " + round(nd:deltav:mag,2) + "m/s, vdot: " + round(vdot(dv0,nd:deltav),1).
+				lock throttle to 0.
+				break.
+			}
+
+			//we have very little left to burn, less then 0.1m/s
+			// Try for 15m first... but should really be 0.1m/s :)
+			set finalBurnTheshold to 15.
+			if nd:deltav:mag < finalBurnTheshold
+			{
+				print "Finalizing burn, remain dv " + round(nd:deltav:mag,2) + "m/s, vdot: " + round(vdot(dv0,nd:deltav),2).
+				set tset to min( (nd:deltav:mag)/(max_acc * 10), 1).
+				//we burn slowly until our node vector starts to drift significantly from initial vector
+				//this usually means we are on point
+				until (vdot(dv0, nd:deltav) < 0.01) 
+					or (targetIsAP and ship:obt:apoapsis >= nodeAP) 
+					or (not targetIsAP and ship:obt:periapsis <= nodePE) {
+
+					StageOnFlameoutCheck().
+					wait 0.001.
+				}
+				lock throttle to 0.
+				print "End burn, remain dv " + round(nd:deltav:mag,2) + "m/s, vdot: " + round(vdot(dv0, nd:deltav),1).
+				set done to True.
+			}
+		}
+	}
+	unlock steering.
+	unlock throttle.
+	wait 1.
+
+	// We no longer need the maneuver node
 	remove nd.
 }

@@ -262,9 +262,10 @@ function ExecManoevourNodeSimple {
 
 function GetStageMass {
 	parameter parentPart.
+	if parentPart = "None" {
+		return 0.
+	}
 	local parameter lvl is 0.
-	//if lvl = 0 print "GetStageMass:".
-    //print round(lvl) + "":padleft(lvl) + "part: " + parentPart:name + " " + parentPart:CID + " drymass: " + parentPart:drymass.
 	local mSum is parentPart:mass.
 	for p in parentPart:children {
 		set mSum to mSum + GetStageMass(p, lvl + 1).
@@ -285,7 +286,7 @@ function ExecManoeuvreNode {
 	local maxAcc IS ship:MAXTHRUST / ship:mass.
 
 	if sDv:current > nd:deltav:mag {
-		print "curr stage enough".
+		print "current stage enough".
 		set burnT to nd:deltav:mag / max_acc.
 	} else {
 		print "multi-stage needed".
@@ -295,9 +296,13 @@ function ExecManoeuvreNode {
 		print "ship:mass: " + round(ship:mass, 3) + "t sMass: " + round(sMass, 3) + "t nextStageMass: " + round(nextStageMass, 3) + "t".
 
 		set burnT to sDv:duration.
-		print "Stage: " + stage:number + " " + burnT + "s" + " dvC: " + round(sDv:current, 3).
+		print "Stage: " + stage:number + " " + round(burnT, 4) + "s" + " dvC: " + round(sDv:current, 3).
 		local remainDvMag is nd:deltav:mag - sDv:current.
 		// Another stage better be available.
+		if stage:nextdecoupler = "None" {
+			print "No more stages. Insufficient delta-V. Aborting ExecManoeuvreNode()".
+			return.
+		}
 		local nextEngine is stage:nextdecoupler:parent.
 		print "Remaining dV: " + round(remainDvMag, 3).
 		// Tsiolkovsky rocket equation:
@@ -311,7 +316,6 @@ function ExecManoeuvreNode {
 		local m0 is ship:mass - sMass.
 		local mf is m0 / (CONSTANT:E ^ dVonISPg0).
 		local fuelMass is m0 - mf.
-		print "Expected last stage mass: 1.323t".
 		print "m0: " + round(m0, 4) + " mf: " + round(mf, 4) + " fuel: " + round(fuelMass, 4) + "t".
 		print "dVonISPg0: " + round(dVonISPg0, 3).
 		local mfBurnT is fuelMass / nextEngine:MaxMassFlow.
@@ -360,7 +364,7 @@ function ExecManoeuvreNode {
 
 	// the ship is facing the right direction, let's wait for our burn time
 	until nd:eta <= (startBurnT) {
-		PrintPairStatus(3, "Wait for burn.  ETA", round(nd:eta, 1), "Start burn", round(nd:eta - (startBurnT), 1) + "s", 5).
+		PrintPairStatus(3, "Wait for burn. ETA", round(nd:eta, 1), "Start burn", round(nd:eta - (startBurnT), 1) + "s", 25).
 		wait 0.001.
 	}
 
@@ -370,9 +374,9 @@ function ExecManoeuvreNode {
 	local done is False.
 	//initial deltav
 	local dv0 is nd:deltav.
-	local nodeAP is nd:orbit:apoapsis.
-	local nodePE is nd:orbit:periapsis.
-	local targetIsAP is ship:obt:apoapsis < nodeAP. 
+	local nodeAP is round(nd:orbit:apoapsis, 2).
+	local nodePE is round(nd:orbit:periapsis, 2).
+	local targetIsAP is round(ship:obt:apoapsis,2) < nodeAP. 
 
 	until done {
 
@@ -383,10 +387,15 @@ function ExecManoeuvreNode {
 
 		PrintStatus(4, "Remain dV " + round(nd:deltav:mag,2) + "m/s, vdot: " + round(vdot(dv0,nd:deltav), 1)).
 		if targetIsAP {
-			PrintPairStatus(5, "Target AP", round(nodeAP, 2), "Curr AP", ship:obt:apoapsis).
+			PrintPairStatus(5, "Target AP", round(nodeAP, 2), "Curr AP", round(ship:obt:apoapsis, 2)).
 		} else {
-			PrintPairStatus(5, "Target PE", round(nodePE, 2), "Curr PE", ship:obt:periapsis).
+			PrintPairStatus(5, "Target PE", round(nodePE, 2), "Curr PE", round(ship:obt:periapsis, 2)).
 		}
+
+		// TODO: Adjust the pitch of the ship to correct the orbit AP/PE to match the target AP/PE during the burn.
+		// Eg: During launch to orbit the first node burn increases the AP while the PE is being brought up to the target PE.
+		// The script needs to detect the drift for AP when the target is PE and vice versa.
+		// Adjust the pitch proportional to the +/- AP/TargetAP?
 
 		// Staging during this phase may have 0 max_acc, which will cause divide by 0 error in nd:deltav:mag/max_acc
 		if max_acc > 0 {
@@ -412,11 +421,12 @@ function ExecManoeuvreNode {
 			{
 				print "Finalizing burn, remain dv " + round(nd:deltav:mag,2) + "m/s, vdot: " + round(vdot(dv0,nd:deltav),2).
 				set tset to min( (nd:deltav:mag)/(max_acc * 10), 1).
+				local epsilonApsis is 0.01. // m/s
 				//we burn slowly until our node vector starts to drift significantly from initial vector
 				//this usually means we are on point
 				until (vdot(dv0, nd:deltav) < 0.01) 
-					or (targetIsAP and ship:obt:apoapsis >= nodeAP) 
-					or (not targetIsAP and ship:obt:periapsis <= nodePE) {
+					or (targetIsAP and abs((ship:obt:apoapsis - nodeAP)) < epsilonApsis) 
+					or (not targetIsAP and abs(ship:obt:periapsis - nodePE) < epsilonApsis) {
 
 					StageOnFlameoutCheck().
 					wait 0.001.

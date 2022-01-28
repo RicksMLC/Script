@@ -5,13 +5,6 @@
 // Objectives:
 // 	Launch to a circular orbit at a given orbitAltitude above Kerbin.
 
-// For the Kerbal Komms Satellite Project:
-//	[ ] Circularise the orbit to a greater precision (eccentricity close to 0)
-//  [ ] Stage the low Kerbin orbit to KeostationaryOrbit to position the komms at the correct longitude.
-//		[ ] Create the two manoeuvre nodes: 
-//			[ ] Low orbit and transition to high orbit
-//		[ ] 
-
 function NodeAndBurnPrototype {
 	parameter targetObtAlt.
 		// Now to set up the maneuver node for orbit...
@@ -37,7 +30,6 @@ function NodeAndBurnPrototype {
 	} else {
 		print "Execute Manoeuvre Node".
 		PSClearPrevStats().
-        //ExecManoevourNodeSimple().
 		ExecManoeuvreNode().
 	}
 }
@@ -66,20 +58,6 @@ function ThrustSum {
     return sumThrust.
 }
 
-// FIXME Remove: Now in OrbitLib.ks.
-// function StageOnFlameoutCheck {
-//     // Check for engine flameout:
-//     list ENGINES in engList.
-//     for eng in engList {
-// 		if eng:flameout {
-// 			wait until stage:ready.
-// 			STAGE.
-// 			print "Flameout STAGING " + stage:NUMBER.
-// 			return.
-// 		}
-// 	}
-// }
-
 lock throttle to 1.0. // 1.0 is the max, 0.0 is idle.
 
 print "CX-4181-4-OVT.ks".
@@ -93,7 +71,6 @@ if not Career():CanMakeNodes {
 	SHUTDOWN.
 }
 
-//set orbitAltitude to KeostationaryOrbit. 
 set orbitAltitude to TestLowOrbit.
 
 set mySteer to HEADING(90, 90). // 90 degrees = East. 90 = straight up.
@@ -118,27 +95,13 @@ IF STATUS = "PRELAUNCH" {
 	until twr > 1.1 {
 		set tSum to ThrustSum().
 		set twr to tSum / mass.
-		print "Thrust: " + round(tSum, 4) + "kN. TWR: " + round(twr, 2) at(0,14).
+		PrintPairStatus(3, "Thrust: ", round(tSum, 4) + "kN.", "TWR: ", round(twr, 2)).
+		wait 0.001.
 	}
 	print "".
 	wait until stage:ready. stage.
 	print "Liftoff".
     PrintStatus(2, "Clamped", not unClamped).
-
-	//This is a trigger that constantly checks to see if our thrust is zero.
-	//If it is, it will attempt to stage and then return to where the script
-	//left off. The PRESERVE keyword keeps the trigger active even after it
-	//has been triggered.
-	// WHEN MAXTHRUST = 0 THEN {
-	// 	if (stage:ready) {
-	// 		PRINT "Staging".
-	// 		STAGE.
-	// 	}
-	// 	if (stage:NUMBER > 0) {
-	// 		PRESERVE.
-	// 	}
-	// }.
-
 
 	lock steering to mySteer.
 
@@ -218,21 +181,25 @@ if STATUS = "ORBITING" {
 	lock throttle to 0.
 	print "Checking Pe: " + round(SHIP:OBT:PERIAPSIS, 2) + " target: " + round(orbitAltitude, 2).
 	if SHIP:OBT:PERIAPSIS < orbitAltitude {
-		print "Correcting orbit.  Create and Execute node? (y)".
+		print "PE < target altitude. Create and Execute node to correct orbit? (y)".
 		if terminal:input:getchar() = "y" {
 			print "NodeAndBurn(" + round(orbitAltitude) + ") executing.".
 			NodeAndBurn(SHIP:OBT:APOAPSIS, true).
 		}
 	}
+	print "Target orbit achieved. AP: " + round(ship:obt:apoapsis, 2) + " PE: " + round(ship:obt:periapsis, 2) + " ecc: " + round(ship:obt:eccentricity, 6).
 	// De-orbit
+	terminal:input:clear().
 	print "Auto DeOrbit?(y):".
 	if terminal:input:getchar() = "y" {
 		Print "De-orbit commence".
 		LOCK STEERING to SHIP:RETROGRADE.
 		wait 4.
 		lock throttle to 1.
-		wait until SHIP:OBT:PERIAPSIS < -200.
+		wait 0.01.
+		wait until (SHIP:OBT:PERIAPSIS < -50000 or ThrustSum() = 0).
 		lock throttle to 0.
+		print "Auto De-orbit complete.".
 	}
 	
 	//This sets the user's throttle setting to zero to prevent the throttle

@@ -1,10 +1,10 @@
-// CX-4181-4-Orbit.ks
+// CX-4181-4-Orbit-Autorun.ks
 // Rick's Mid-Life Crisis
 // Script for loading other scripts.
 
 wait until ship:unpacked.
 core:DoEvent("open terminal").
-print "CX-4181-4-Orbit.ks running...".
+print "CX-4181-4-OVT-Autorun.ks running...".
 set ksList to list("psLib", "CX-4181-4-OVT").
 set runList to "".
 local ext is "".

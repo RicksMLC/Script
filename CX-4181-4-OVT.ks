@@ -75,6 +75,7 @@ set orbitAltitude to TestLowOrbit.
 
 set mySteer to HEADING(90, 90). // 90 degrees = East. 90 = straight up.
 
+runoncepath("0:/FlightLib.ks").
 runoncepath("0:/OrbitLib.ks").
 print "STATUS:" + STATUS.
 

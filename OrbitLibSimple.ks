@@ -1,7 +1,35 @@
-// OrbitLib.ksp
+// OrbitLibSimple.ksp
 // Rick's Mid-Life Crisis.
-// Some functions to help with orbits.
-// Note: Depends on FlightLib.ks.
+// Some functions to help with orbits - Early Version.
+
+function StageOnFlameoutCheck {
+	// Returns True if no flameout yet or successfully staged to a new engine
+	// Returns False if all stages deployed and still no thrust.
+    // Check for engine flameout:
+    list ENGINES in engList.
+    for eng in engList {
+		if eng:flameout {
+			wait until stage:ready.
+			print "StageOnFlameoutCheck() " + eng:name + " Flameout STAGING " + stage:NUMBER.
+			STAGE.
+			wait until stage:ready.
+			wait 0.001.
+			until maxthrust > 0 {
+				print "StageOnFlameoutCheck() maxthrust = 0 STAGING " + stage:NUMBER.
+				stage.
+				wait until stage:ready.
+				wait 0.001.
+				if stage:number < 1 {
+					print "StageOnFlameoutCheck() maxthrust = 0 NO MORE STAGES - return false." + stage:NUMBER.
+					return false.
+				}
+			}
+			return true.
+		}
+	}
+	return true. // No flameouts
+}
+
 
 function VisVivaDeltaV1 {
 	// VisViva is:
@@ -42,6 +70,7 @@ function CreateHohmannTransferNodes {
 	// starting orbit will probably be elliptic ie (the PE and AP will be different).
 	// To adjust for this the current difference in velocity between the ideal circular orbit
 	// and current orbit at the xferNodePoint is calculated and subtracted to the transfer orbit dV.
+	// 
 	
 	// Assume the current periapsis is at the correct longitude for the resulting apoapsis.
 	parameter targetAlt.
@@ -137,6 +166,110 @@ function CalcOrbitalVelocity {
 	RETURN Vo.
 }
 
+function ExecManoevourNodeSimple {
+	// As per the tutorial http://ksp-kos.github.io/KOS_DOC/tutorials/exenode.html
+	local nd is nextnode.
+	// print out node's basic parameters - ETA and deltaV
+	print "Node in: " + round(nd:eta) + ", DeltaV: " + round(nd:deltav:mag).
+	
+	// Calculate the ship's max acceleration
+	LOCAL max_acc IS ship:maxthrust / ship:mass.
+	
+	// Now we just need to divide deltav:mag by our ship's max acceleration
+	// to get the estimated time of the burn.
+	//
+	// Please note, this is not exactly correct.  The real calculation
+	// needs to take into account the fact that the mass will decrease
+	// as you lose fuel during the burn.  In fact throwing the fuel out
+	// the back of the engine very fast is the entire reason you're able
+	// to thrust at all in space.  The proper calculation for this
+	// can be found easily enough online by searching for the phrase
+	//   "Tsiolkovsky rocket equation".
+	// This example here will keep it simple for demonstration purposes,
+	// but if you're going to build a serious node execution script, you
+	// need to look into the Tsiolkovsky rocket equation to account for
+	// the change in mass over time as you burn.
+	//
+	set burn_duration to nd:deltav:mag/max_acc.
+	print "Crude Estimated burn duration: " + round(burn_duration) + "s".
+	PrintStatus(0, "Node ETA", nd:eta).
+	// Wait until before the eta - (1/2 the burn time + 60s to allow for slow turning.
+	until nd:eta <= (burn_duration/2 + 60) {
+		PrintStatus(1, "Start turn at eta -" + round((burn_duration/2 + 60), 1) + "s", round(nd:eta - (burn_duration/2 + 60), 1)).
+		wait 0.001.
+	}
+	PrintStatus(1, "Lining up for node", nd:eta).
+
+	// Time to line up the ship to the deltav vector.
+	local np is nd:deltav. //points to node, don't care about the roll direction.
+	lock steering to np.
+
+	// now we need to wait until the burn vector and ship's facing are aligned
+	local targetVang is round(vang(np, ship:facing:vector) - 0.25, 2).
+	until vang(np, ship:facing:vector) < 0.25 {
+		PrintPairStatus(2, "Turn to ", targetVang, " cur", vang(np, ship:facing:vector)).
+		wait 0.001.
+	}
+
+	// the ship is facing the right direction, let's wait for our burn time
+	until nd:eta <= (burn_duration/2) {
+		PrintPairStatus(3, "Wait for burn. ETA", round(nd:eta, 1) + "s", "Start burn", round(nd:eta - (burn_duration/2), 1) + "s", 30).
+		wait 0.001.
+	}
+
+	// we only need to lock throttle once to a certain variable in the beginning of the
+	// loop, and adjust only the variable itself inside it.
+	local tset is 0.
+	lock throttle to tset.
+
+	local done is False.
+	//initial deltav
+	local dv0 is nd:deltav.
+	until done {
+
+		//recalculate current max_acceleration, as it changes while we burn through fuel
+		set max_acc to ship:maxthrust/ship:mass.
+		
+		// Staging during this phase may have 0 max_acc, which will cause divide by 0 error in nd:deltav:mag/max_acc
+		if max_acc > 0 {
+
+			//throttle is 100% until there is less than 1 second of time left to burn
+			//when there is less than 1 second - decrease the throttle linearly
+			set tset to min(nd:deltav:mag/max_acc, 1).
+
+			// here's the tricky part, we need to cut the throttle as soon as our nd:deltav and
+			// initial deltav start facing opposite directions
+			// this check is done via checking the dot product of those 2 vectors
+			if vdot(dv0, nd:deltav) < 0
+			{
+				print "End burn, remain dv " + round(nd:deltav:mag,1) + "m/s, vdot: " + round(vdot(dv0,nd:deltav),1).
+				lock throttle to 0.
+				break.
+			}
+
+			//we have very little left to burn, less then 0.1m/s
+			if nd:deltav:mag < 0.1
+			{
+				print "Finalizing burn, remain dv " + round(nd:deltav:mag,1) + "m/s, vdot: " + round(vdot(dv0,nd:deltav),1).
+				
+				//we burn slowly until our node vector starts to drift significantly from initial vector
+				//this usually means we are on point
+				wait until vdot(dv0, nd:deltav) < 0.5.
+
+				lock throttle to 0.
+				print "End burn, remain dv " + round(nd:deltav:mag,1) + "m/s, vdot: " + round(vdot(dv0, nd:deltav),1).
+				set done to True.
+			}
+		}
+	}
+	unlock steering.
+	unlock throttle.
+	wait 1.
+
+	//we no longer need the maneuver node
+	remove nd.
+}
+
 function GetStageMass {
 	parameter parentPart.
 	if parentPart = "None" {
@@ -151,11 +284,9 @@ function GetStageMass {
 }
 
 function ExecManoeuvreNode {
-	// Based on and adapted from tutorial http://ksp-kos.github.io/KOS_DOC/tutorials/exenode.html
 	local nd is nextnode.
 	print "ExecManoeuvreNode in: " + round(nd:eta) + "s, DeltaV: " + round(nd:deltav:mag, 2) + "m".
-
-	// Calculate burn time
+	
 	print "stage dv: " + stage:deltav:current + "m/s " + stage:deltav:duration + "s".
 	local sDv is stage:deltaV. // ship:stagenum
 	local burnT is 0.
@@ -223,11 +354,17 @@ function ExecManoeuvreNode {
 	PrintStatus(1, "Lining up for node", nd:eta).
 
 	// Time to line up the ship to the deltav vector.
-	local np is nd:deltav. // points to node, don't care about the roll direction.
+	local np is nd:deltav. //points to node, don't care about the roll direction.
 	//FIXME: What if we lock to nd:deltav instead?
 	//lock steering to np.
 	lock steering to nd:deltav.
-	WaitToFaceVector(nd:deltav, true).
+
+	// now we need to wait until the burn vector and ship's facing are aligned
+	local targetVang is round(vang(np, ship:facing:vector) - 0.25, 2).
+	until vang(np, ship:facing:vector) < 0.25 {
+		PrintPairStatus(2, "Turn to ", targetVang, " cur", vang(np, ship:facing:vector)).
+		wait 0.001.
+	}
 
 	// the ship is facing the right direction, let's wait for our burn time
 	until nd:eta <= (startBurnT) {
@@ -251,7 +388,7 @@ function ExecManoeuvreNode {
 		//recalculate current maxAcceleration, as it changes while we burn through fuel
 		set maxAcc to ship:maxthrust/ship:mass.
 		
-		set stagesOk to StageOnFlameoutCheck(true, 1).
+		set stagesOk to StageOnFlameoutCheck().
 
 		PrintStatus(4, "Remain dV " + round(nd:deltav:mag,2) + "m/s, vdot: " + round(vdot(dv0,nd:deltav), 1)).
 		if targetIsAP {
@@ -295,8 +432,7 @@ function ExecManoeuvreNode {
 				until (vdot(dv0, nd:deltav) < 0.01) 
 					or (targetIsAP and abs((ship:obt:apoapsis - nodeAP)) < epsilonApsis) 
 					or (not targetIsAP and abs(ship:obt:periapsis - nodePE) < epsilonApsis) {
-					
-					PrintStatus(4, "Remain dV " + round(nd:deltav:mag,2) + "m/s, vdot: " + round(vdot(dv0,nd:deltav), 1)).
+
 					set stagesOk to StageOnFlameoutCheck().
 					wait 0.001.
 				}

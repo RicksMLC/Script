@@ -53,19 +53,6 @@ function DeployFairing {
 	}
 }
 
-function StageOnFlameoutCheck {
-    // Check for engine flameout:
-    list ENGINES in engList.
-    for eng in engList {
-		if eng:flameout {
-			wait until stage:ready.
-			STAGE.
-			print "Flameout STAGING " + stage:NUMBER.
-			return.
-		}
-	}
-}
-
 set autoAntenna to not Career():CanDoActions.
 if not autoAntenna {
 	print "Warning: No kOS Antenna activations. Career limit (actions not available).".
@@ -111,13 +98,14 @@ if SHIP:STATUS = "FLYING" {
 	wait 3.
 	PrintStatus(0, "Liftoff", SHIP:STATUS, true).
 
-	WHEN AVAILABLETHRUST = 0 THEN {
-		if (stage:ready) {
-			PrintStatus(4, "Staging", stage:NUMBER).
-			STAGE.
-		}
-		return stage:NUMBER > lastStageNum.
-	}.
+	// FIXME: Remove this trigger?
+	//WHEN AVAILABLETHRUST = 0 THEN {
+	//	if (stage:ready) {
+	//		PrintStatus(4, "Staging", stage:NUMBER).
+	//		STAGE.
+	//	}
+	//	return stage:NUMBER > lastStageNum.
+	//}.
 
 	set mySteer to HEADING(90,90). // 90 degrees = East. 90 = straight up.
 	lock steering to mySteer.
@@ -163,8 +151,8 @@ if SHIP:STATUS = "FLYING" {
 			PrintNextEntry().
 		}
 		StageOnFlameoutCheck().
-		PrintStatus(7, "Altitude", round(ship:altitude) + "m").
-        PrintPairStatus(8, "Ap", round(SHIP:APOAPSIS, 0) + "m", "ETA", round(SHIP:OBT:ETA:APOAPSIS, 2) + "s").
+		PrintStatus(6, "Altitude", round(ship:altitude) + "m").
+        PrintPairStatus(7, "Ap", round(SHIP:APOAPSIS, 0) + "m", "ETA", round(SHIP:OBT:ETA:APOAPSIS, 2) + "s").
 		wait 0.001.
 	}
 
@@ -189,16 +177,16 @@ if SHIP:STATUS = "FLYING" {
 		Print "Adjusting Ap to " + orbitAltitude.
 		set mySteer to SHIP:PROGRADE.
 		wait 1.
-	
+		LOCK THROTTLE TO 0.1.
+		
 		until APOAPSIS >= orbitAltitude {
-			LOCK THROTTLE TO 0.1.
+			StageOnFlameoutCheck().
 		}
 	}
 	LOCK THROTTLE TO 0.
 	wait 1. // wait to settle down for deltav duration calc.
 
    	CreateCircularOrbitNode(orbitAltitude).
-   	//ExecManoevourNodeSimple().
 	ExecManoeuvreNode().
 
 	//This sets the user's throttle setting to zero to prevent the throttle
@@ -212,6 +200,7 @@ if STATUS = "ORBITING" {
 	PSClearPrevStats().
 	PrintStatus(0, "Status", STATUS).
     if autoDeOrbit = True {
+		print "Auto De-Orbiting".
 		if not HOMECONNECTION:ISCONNECTED {
 			print "LOS.".
 			LOCK THROTTLE TO 0.
@@ -225,8 +214,8 @@ if STATUS = "ORBITING" {
         if not exists("DeOrbitLib.ks") {
             copypath("0:/DeOrbitLib.ks", "").
         }
+		print "Running: DeOrbitLib.ks".
         runoncepath("DeOrbitLib").
-		print "Auto De-Orbiting".
 
 		if autoAntenna {
         	SetAllAntennasOn(false).

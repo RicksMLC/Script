@@ -155,6 +155,9 @@ function ExecManoeuvreNode {
 	local nd is nextnode.
 	print "ExecManoeuvreNode in: " + round(nd:eta) + "s, DeltaV: " + round(nd:deltav:mag, 2) + "m".
 
+	local tset is 0.
+	lock throttle to tset.
+
 	// Calculate burn time
 	print "stage dv: " + stage:deltav:current + "m/s " + stage:deltav:duration + "s".
 	local sDv is stage:deltaV. // ship:stagenum
@@ -208,7 +211,7 @@ function ExecManoeuvreNode {
 	set startBurnT to (burnT / 2).
 
 	print "Crude Estimated burn duration: " + round(burn_duration) + "s".
-	PrintStatus(0, "Node ETA", nd:eta).
+	PrintStatus(0, "Node ETA", nd:eta, true).
 	// Wait until before the eta - (1/2 the burn time + 60s to allow for slow turning.
 	//until nd:eta <= (burn_duration + 60) {
 	//	PrintStatus(1, "Start turn at eta -" + round((burn_duration + 60), 1) + "s", round(nd:eta - (burn_duration + 60), 1)).
@@ -220,6 +223,7 @@ function ExecManoeuvreNode {
 		PrintStatus(1, "Start turn at eta T-" + round((startBurnT + 60), 1) + "s", round(nd:eta - (startBurnT + 60), 1)).
 		wait 0.001.
 	}
+	kuniverse:timewarp:CancelWarp().
 	PrintStatus(1, "Lining up for node", nd:eta).
 
 	// Time to line up the ship to the deltav vector.
@@ -235,15 +239,17 @@ function ExecManoeuvreNode {
 		wait 0.001.
 	}
 
-	local tset is 0.
-	lock throttle to tset.
+	kuniverse:timewarp:CancelWarp().
 
 	local done is False.
 	//initial deltav
 	local dv0 is nd:deltav.
 	local nodeAP is round(nd:orbit:apoapsis, 2).
 	local nodePE is round(nd:orbit:periapsis, 2).
-	local targetIsAP is round(ship:obt:apoapsis,2) < nodeAP. 
+	local targetIsAP is abs(round(ship:obt:apoapsis,2) - nodeAP) > abs(round(ship:obt:periapsis, 2) - nodePE). 
+	local epsilonApsis is 1.
+
+	print "targetIs: " + (choose "AP" if targetIsAP else "PE") + " Ship AP:" + round(ship:obt:apoapsis,2) + " nodeAP: " + nodeAP + " Ship PE: " + ship:obt:periapsis + " nodePE: " + nodePE.
 
 	local stagesOk is true.
 	until done {
@@ -275,32 +281,27 @@ function ExecManoeuvreNode {
 			// here's the tricky part, we need to cut the throttle as soon as our nd:deltav and
 			// initial deltav start facing opposite directions
 			// this check is done via checking the dot product of those 2 vectors
-			if vdot(dv0, nd:deltav) < 0
-			{
+			if vdot(dv0, nd:deltav) < 0	{
 				print "End burn, remain dv " + round(nd:deltav:mag,2) + "m/s, vdot: " + round(vdot(dv0,nd:deltav),1).
-				lock throttle to 0.
 				break.
 			}
 
 			//we have very little left to burn, less then 0.1m/s
-			// Try for 15m first... but should really be 0.1m/s :)
-			set finalBurnTheshold to 15.
-			if nd:deltav:mag < finalBurnTheshold
-			{
+			// Try for 5m first... but should really be 0.1m/s :)
+			set finalBurnTheshold to 5.
+			if nd:deltav:mag < finalBurnTheshold {
 				print "Finalizing burn, remain dv " + round(nd:deltav:mag,2) + "m/s, vdot: " + round(vdot(dv0,nd:deltav),2).
-				set tset to min( (nd:deltav:mag)/(maxAcc * 10), 1).
-				local epsilonApsis is 0.01. // m/s
+				set tset to min( (nd:deltav:mag)/(maxAcc * 20), 1).
 				//we burn slowly until our node vector starts to drift significantly from initial vector
 				//this usually means we are on point
-				until (vdot(dv0, nd:deltav) < 0.01) 
-					or (targetIsAP and abs((ship:obt:apoapsis - nodeAP)) < epsilonApsis) 
-					or (not targetIsAP and abs(ship:obt:periapsis - nodePE) < epsilonApsis) {
+				until (targetIsAP and abs((ship:obt:apoapsis - nodeAP)) < epsilonApsis) 
+					or (not targetIsAP and abs(ship:obt:periapsis - nodePE) < epsilonApsis)
+					or (vdot(dv0, nd:deltav) < 0.01) {
 					
 					PrintStatus(4, "Remain dV " + round(nd:deltav:mag,2) + "m/s, vdot: " + round(vdot(dv0,nd:deltav), 1)).
 					set stagesOk to StageOnFlameoutCheck().
 					wait 0.001.
 				}
-				lock throttle to 0.
 				print "End burn, remain dv " + round(nd:deltav:mag,2) + "m/s, vdot: " + round(vdot(dv0, nd:deltav),1).
 				set done to True.
 			}
@@ -309,10 +310,44 @@ function ExecManoeuvreNode {
 			set done to True.
 		}
 	}
+	print "Node execution done. Set tset to 0 and unlock throttle.".
+	set tset to 0.
 	unlock steering.
 	unlock throttle.
 	wait 1.
 
 	// We no longer need the maneuver node
 	remove nd.
+}
+
+function ExecHohmannTransfer {
+	parameter targetAltitude.
+	parameter startAltitude is -1.
+	parameter etaToNode is -1.
+	parameter verbose is false.
+
+	print "ExecHohmannTransfer:".
+	if not HASNODE {
+		if startAltitude = -1 {
+			set startAltitude to SHIP:OBT:PERIAPSIS.
+			if targetAltitude < startAltitude {
+				SET startAltitude TO SHIP:OBT:APOAPSIS.
+			}
+		}
+
+		print "  Hohmann Node target alt: " + targetAltitude + " Start alt: " + startAltitude.
+		if (CreateHohmannTransferNodes(targetAltitude, startAltitude, SHIP:BODY, etaToNode, verbose)) {
+			PRINT "  Hohmann transfer nodes prepared.".
+		} else {
+			PRINT " Failed to create Hohmann transfer nodes :(".
+		}
+	}
+	if HASNODE {
+		ExecManoeuvreNode().
+		PRINT " Transfer complete.".
+	}
+	if HASNODE {
+		ExecManoeuvreNode().
+		PRINT "  Final burn complete.".
+	}
 }

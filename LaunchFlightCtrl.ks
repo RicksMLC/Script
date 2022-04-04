@@ -4,7 +4,7 @@
 //    LaunchLib.ks, FlightLib.ks, OrbitLib.ks and psLib.ks. 
 
 set autoAntenna to true.
-set orbitAltitude to 80000.
+set orbitAltitude to 87000.
 set lastStageNum to 2.
 set targetRadius to orbitAltitude + KERBIN:radius.
 print "LaunchFlightCtrl.ks Target alt:" + round(orbitAltitude/1000, 3) + "km".
@@ -34,6 +34,8 @@ if SHIP:STATUS = "FLYING" {
 
 	wait until ship:altitude > 55000.
 	DeployFairing("fairing").
+
+	SetAllAntennasOn(true).
 
 	wait until ship:altitude > 70000.
 	kuniverse:timewarp:CancelWarp().

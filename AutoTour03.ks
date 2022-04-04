@@ -98,15 +98,6 @@ if SHIP:STATUS = "FLYING" {
 	wait 3.
 	PrintStatus(0, "Liftoff", SHIP:STATUS, true).
 
-	// FIXME: Remove this trigger?
-	//WHEN AVAILABLETHRUST = 0 THEN {
-	//	if (stage:ready) {
-	//		PrintStatus(4, "Staging", stage:NUMBER).
-	//		STAGE.
-	//	}
-	//	return stage:NUMBER > lastStageNum.
-	//}.
-
 	set mySteer to HEADING(90,90). // 90 degrees = East. 90 = straight up.
 	lock steering to mySteer.
 
@@ -160,6 +151,7 @@ if SHIP:STATUS = "FLYING" {
 
 	LOCK THROTTLE TO 0.
 
+	print "Wait until 65000 to deploy fairing".
 	wait until ship:altitude > 65000.
 	DeployFairing("fairing").
 
@@ -187,6 +179,7 @@ if SHIP:STATUS = "FLYING" {
 	wait 1. // wait to settle down for deltav duration calc.
 
    	CreateCircularOrbitNode(orbitAltitude).
+
 	ExecManoeuvreNode().
 
 	//This sets the user's throttle setting to zero to prevent the throttle
@@ -198,7 +191,7 @@ if SHIP:STATUS = "FLYING" {
 
 if STATUS = "ORBITING" {
 	PSClearPrevStats().
-	PrintStatus(0, "Status", STATUS).
+	PrintStatus(0, "Status", STATUS, true).
     if autoDeOrbit = True {
 		print "Auto De-Orbiting".
 		if not HOMECONNECTION:ISCONNECTED {

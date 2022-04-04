@@ -25,7 +25,14 @@ function LaunchClamped {
 		if (stage:ready) {
 			print "Staging " + stage:NUMBER.
 			STAGE.
-            PrintStatus(3, "Staged", (choose "Still clamped" if not unClamped else "Clamps free!")).
+			local twr is 0.
+			until twr > 1.1 {
+				set tSum to ThrustSum().
+				set twr to tSum / mass.
+				PrintPairStatus(3, "Thrust: ", round(tSum, 4) + "kN.", "TWR: ", round(twr, 2)).
+				wait 0.001.
+			}
+            PrintStatus(4, "Staged", (choose "Still clamped" if not unClamped else "Clamps free!")).
 		}
         wait 0.001.
 	}.

@@ -42,8 +42,38 @@ function StageOnFlameoutCheck {
 	}
 }
 
+function TweakOrbitPeriod {
+	parameter newPeriod.
+	parameter verbose is false.
+
+	if (not ship:hasbody) {
+		print "  What are we doing here? No BODY to orbit!".
+		return.
+	}
+	set kDay to ship:body:rotationperiod.
+	set epsilonPeriod to 0.5.
+	if abs(ship:obt:period - kDay) > epsilonPeriod {
+		PrintPairStatus(0, "Adjusting period to ", round(kDay, 4), "Epslion", round(epsilonPeriod, 4)).
+		if ship:obt:period < kDay {
+			lock steering to PROGRADE.
+			//WaitToFacePrograde(verbose).
+		} else {
+			lock steering to RETROGRADE.
+			//WaitToFaceRetrograde(verbose).
+		}
+		wait 3.
+		until abs(ship:obt:period - kDay) < epsilonPeriod {
+			PrintStatus(1, "obt:period", round(ship:obt:period, 4)).
+			lock throttle to 0.002.
+			wait 0.001.
+		}
+		unlock throttle.
+		print "Period adjusted to " + ship:obt:period.
+	}
+}
+
 wait until ship:unpacked.
-clearscreen.
+
 print "KerbalKomms01.ks".
 
 set KeostationaryOrbit to 2863330.
@@ -57,19 +87,55 @@ set orbitAltitude to InitLowOrbit.
 
 set prevStatus to STATUS.
 set throt to 1.
-set targetLng to -74.55. // The Longitude of the KSC (trust me on this for now)
+
+// Kerbal Komms Mk 1 - 0	= KSC long
+//   Komms-0 => Kerbin
+//	 Komms-1 => Kerbal Komms Mk 1 - E
+//	 Komms-2 => Kerbal Komms Mk 1 - W
+
+// Kerbal Komms Mk 1 - E	= east
+//   Komms-0 => Kerbal Komms Mk 1 - 0
+//	 Komms-1 => Kerbal Komms Mk 1 - 1
+
+// Kerbal Komms Mk 1 - W	= west
+//   Komms-0 => Kerbal Komms Mk 1 - 0
+//	 Komms-1 => Kerbal Komms Mk 1 - 1
+
+// Kerbal Komms Mk 1 - 1	= opposite
+//   Komms-0 => Kerbal Komms Mk 1 - E
+//	 Komms-1 => Kerbal Komms Mk 1 - W
+
+
+set kscLng to -74.55.
+set targetLngE to kscLng + 90.
+set targetLngW to kscLng - 90.
+set targetLngOpp to kscLng + 180.
+
+set ship:shipname to "Kerbal Komms Mk 1 - E".
+set komms0Target to "Kerbin".
+set komms1Target to "Kerbal Komms Mk 1 - 0".
+set komms2Target to "no-target".
+//set targetLng to targetLngE.
+
+
+set contractLng to 42.
+set targetLng to contractLng.
+
 // For safety reasons...
-IF STATUS = "PRELAUNCH" {
-
-	lock throttle to throt.
-
-	print "Counting down:".
-	from {local countdown is 10.} until countdown = 0 step {set countdown to countdown -1.} do {
-		print ("..." + countdown + "  ") at (0, 3).
-		wait 1.
-	}
-	stage.
+IF SHIP:STATUS = "PRELAUNCH" {
+    LaunchClamped().
 }
+// FIXME: Remove
+// IF STATUS = "PRELAUNCH" {
+// 	lock throttle to throt.
+// 	print "Counting down:".
+// 	from {local countdown is 10.} until countdown = 0 step {set countdown to countdown -1.} do {
+// 		print ("..." + countdown + "  ") at (0, 3).
+// 		wait 1.
+// 	}
+// 	stage.
+// }
+
 if status = "FLYING" {
     print "Liftoff!".
     PrintStatus(0, "Liftoff", SHIP:STATUS).
@@ -140,7 +206,7 @@ if status = "FLYING" {
 	LOCK THROTTLE TO 0.
 
 	// Deploy Fairing
-	SET fairingDeployHeight to SHIP:BODY:ATM:HEIGHT - 5000.
+	SET fairingDeployHeight to SHIP:BODY:ATM:HEIGHT - 15000.
 	PRINT "Deploy fairing at high atmosphere " + SHIP:BODY:NAME + " (" + fairingDeployHeight + "m)".
 	wait until ALT:RADAR > fairingDeployHeight.
 	SET partList to SHIP:PARTSTAGGED("fairing").
@@ -165,7 +231,7 @@ if status = "FLYING" {
 	}
 	LOCK THROTTLE TO 0.
 
-	CreateCircularOrbitNode(orbitAltitude, SHIP:BODY, true).
+	CreateCircularOrbitNode(APOAPSIS, SHIP:BODY, true).
 	
 	// OrbitLib.ks to execute the node
 	if MAXTHRUST = 0 {
@@ -176,6 +242,13 @@ if status = "FLYING" {
 	} 	
 	ExecManoeuvreNode().
 	wait 1.
+
+	if ship:obt:eccentricity > 0.001 {
+		print "Orbit ecc: " + round(ship:obt:eccentricity, 4) + " Correcting...".
+		CreateCircularOrbitNode(APOAPSIS, SHIP:BODY, true).
+		ExecManoeuvreNode().
+		wait 1.
+	}
 }
 
 IF STATUS = "ORBITING" {
@@ -187,19 +260,23 @@ IF STATUS = "ORBITING" {
 	}
 
 	// Try to set the PE to the desired Lng so the transfers will happen at the correct time.
-	// Note 1h22m from PE to AP transfer node.
+	// Note 1h24m from PE to AP transfer node.
 	PSClearPrevStats().
 	PrintStatus(0, "Adjusting PE to Lng", targetLng).
 	// Calc the burn longitude of the burn for setting the PE for the Hohmann transfer.
-	// timeHohmannTransfer = 1h 22m = (1 * 60 + 22) * 60 // seconds
-	// shipDegPerSec = SHIP:OBT:PERIOD / 360
+	// timeHohmannTransfer = 1h 24m = (1 * 60 + 24) * 60 // seconds
+	// shipDegPerSec = 360 / SHIP:OBT:PERIOD
+	// long for the burn = [opposite side to the target long] => + 180 deg
+	//					 - [body rotation during the Hohmann transfer] => - (HTT * KRR) deg
+	//					 - [body rotation during ship PE point to HohmannNode] =>  deg
+	//					 - [body rotation during ship current long  to PE setpoint]
 	// burnLongitudeApprox = targetLongiude + 180 + (timeHohmannTransfer * kerbinRotationRate)
 	// degreesToBurnLongApprox = burnLongitudeApprox - shipLong
-	// timeToBurn = degreesToBurnLongApprox * shipDegPerSec
-	// burnLongitudeApprox = (burnLongitudeApprox + (timeToBurn / kerbinRotationRate)
+	// secondsTilBurn = degreesToBurnLongApprox * shipDegPerSec
+	// burnLongitudeApprox = (burnLongitudeApprox + (secondsTilBurn / kerbinRotationRate)
 	//
-	// timeToBurn2 = (burnLongitudeApprox  - shipLong) * shipDegPerSec
-	// dT = timeToBurn2 - timeToBurn
+	// secondsTilBurn2 = (burnLongitudeApprox  - shipLong) * shipDegPerSec
+	// dT = secondsTilBurn2 - secondsTilBurn
 	// if dT > epsilon
 	//		factor in time to burn again.
 	//
@@ -213,29 +290,37 @@ IF STATUS = "ORBITING" {
 	
 	print "Calculating PE adjust burn to set up Hohmann Transfer.".
 	// Normalise the longitude from -180 -> 180 to 0->360
-	set tgtLongN to targetLng + 180.
-	set tHohmannTransferSec to (1 * 60 + 22) * 60. // timeHohmannTransfer duration from PE in seconds (1h 22m).
-	set shipDegPerSec to SHIP:OBT:PERIOD / 360.
-	set kerbinRR to 1/60. // Kerbin rotation rate 1 deg / min = 1/60 per second.
-	set burnLongApprox to tgtLongN + 180 - (tHohmannTransferSec * kerbinRR).
+	set tgtLngN to targetLng + 180.
+	
+	set tHohmannTransferSec to (1 * 60 + 24) * 60. // timeHohmannTransfer duration from PE in seconds (1h 24m).
+	set shipDegPerSec to 360 / SHIP:OBT:PERIOD.
+	set kerbinRR to 360 / ship:body:rotationperiod. 
+
+	set burnLongApprox to (tgtLngN + 180) - (tHohmannTransferSec * kerbinRR).
 	set degShipToBurn to burnLongApprox - (SHIP:GEOPOSITION:LNG + 180).
-	set timeToBurn to degShipToBurn * shipDegPerSec.
-	set burnLongApprox to burnLongApprox - (timeToBurn * kerbinRR).
-	set timeToBurn2 to (burnLongApprox - (SHIP:GEOPOSITION:LNG + 180)) * shipDegPerSec.
-	print "TimeToBurn: " + timeToBurn + " TimeToBurn2: " + timeToBurn2.
-	if timeToBurn2 - timeToBurn > 10 {
+	set secondsTilBurn to degShipToBurn * shipDegPerSec.
+	set burnLongApprox to burnLongApprox - (secondsTilBurn * kerbinRR).
+	set secondsTilBurn2 to (burnLongApprox - (SHIP:GEOPOSITION:LNG + 180)) * shipDegPerSec.
+	print "TimeToBurn: " + round(secondsTilBurn, 2) + " TimeToBurn2: " + round(secondsTilBurn2, 2).
+	if secondsTilBurn2 - secondsTilBurn > 10 {
 		// Apply one more time?
-		print "TimeToBurn diff > 60. Do something?".
+		print "TimeToBurn diff > 10. Do something?".
 	}
 	// Denormalise to -180 to 180.
 	print "burnLongApprox:" + burnLongApprox.
+	set burnLongApprox to mod(burnLongApprox, 360).
 	set burnLng to burnLongApprox - 180.
 
 	lock steering to ship:RETROGRADE.
 	set burnTime to 2.
 	set epsilonDeg to 0.5.
+	PrintStatus(1, "Adjust PE to prepare for Hohmann Transfer nodes.").
+	when abs(SHIP:GEOPOSITION:LNG - burnLng) < epsilonDeg * 10 then {
+		kuniverse:timewarp:CancelWarp().
+		print "Cancelling warp.".
+	}
 	until abs(SHIP:GEOPOSITION:LNG - burnLng) < epsilonDeg {
-		PrintPairStatus(1, "BurnLng", round(burnLng, 2), "ShipLng", round(SHIP:GEOPOSITION:LNG, 2)).
+		PrintPairStatus(2, "BurnLng", round(burnLng, 2), "ShipLng", round(SHIP:GEOPOSITION:LNG, 2)).
 		wait 0.001.
 	}
 	set throt to 1.
@@ -244,27 +329,9 @@ IF STATUS = "ORBITING" {
 	set throt to 0.
 	unlock steering.
 	wait 1.
+	ExecHohmannTransfer(targetAltitude, -1, -1, true).
 
-	if not HASNODE {
-		LOCAL startAltitude is SHIP:OBT:PERIAPSIS.
-		if targetAltitude < startAltitude {
-			SET startAltitude TO SHIP:OBT:APOAPSIS.
-		}
-		print "Hohmann Node target alt: " + targetAltitude + " Start alt: " + startAltitude.
-		if (CreateHohmannTransferNodes(targetAltitude, startAltitude, SHIP:BODY, -1, true)) {
-			PRINT "Hohmann transfer nodes prepared.".
-		} else {
-			PRINT "Failed to create Hohmann transfer nodes :(".
-		}
-	}
-	if HASNODE {
-		ExecManoeuvreNode().
-		PRINT "Transfer complete.".
-	}
-	if HASNODE {
-		ExecManoeuvreNode().
-		PRINT "Final burn complete.".
-	}
+	print "Target Long:" + round(targetLng, 2) + "Ship Orbit Long: " + round(ship:GEOPOSITION:LNG) + " diff: " + (round(targetLng, 2) - round(ship:GEOPOSITION:LNG)) + "deg.".
 
 	wait 2.
 	Print "Deploying Antennas.".
@@ -272,11 +339,18 @@ IF STATUS = "ORBITING" {
 	SET P TO SHIP:PARTSTAGGED("Komms-0")[0].
 	SET M to p:GETMODULE("ModuleRTAntenna").
 	M:DOEVENT("activate").
-	M:SETFIELD("target", "Kerbin").
+	M:SETFIELD("target", komms0Target).
 	SET P TO SHIP:PARTSTAGGED("Komms-1")[0].
 	SET M to p:GETMODULE("ModuleRTAntenna").
 	M:DOEVENT("activate").
-	M:SETFIELD("target", "Kerbin BioScan-Not Spying Honest Mk 1").
+	M:SETFIELD("target", komms1Target).
+
+	// Tweak the orbit to have a period of body day (eg Kerbin Day = 6 * 60 * 60).
+	print "Tweaking orbit to body period".
+	TweakOrbitPeriod(ship:body:rotationperiod, true).
+
+	lock steering to north.
+	wait 6.
 
 	if DeOrbit {
 		// De-orbit

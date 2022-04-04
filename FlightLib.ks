@@ -40,6 +40,22 @@ function StageOnFlameoutCheck {
 
 function NullDelegate {}
 
+function SetAllAntennasOn {
+	parameter activate is true.
+	set antennas to ship:partstagged("antenna").
+	if antennas:empty {
+		print "SetAntanna Fail: no tagged 'antenna' parts.".
+		return.
+	}
+	for antenna in antennas {
+		// Check for non-RemoteTech?
+		set am to antenna:getmodule("ModuleRTAntenna").
+		set eventName to (choose "A" if activate else "Dea") +"ctivate".
+		print eventName + "ing antenna '" + antenna:name + "'".
+		am:DoEvent(eventName).
+	}
+}
+
 function ControlFlight {
 	parameter targetAp.
 	parameter targetAlt.
@@ -117,9 +133,17 @@ function WaitToFaceRetrograde {
     WaitToFaceShipDirection(false, verbose).
 }
 
+function ThrustSum {
+    list engines in eList.
+    local sumThrust is 0.
+    for e in eList {
+        set sumThrust to sumThrust + e:thrust.
+    }
+    return sumThrust.
+}
 
-local epsilonDegAngle is 0.25.
 
+local epsilonDegAngle is 0.5.
 function WaitToFaceShipDirection {
     parameter isPrograde is true.
     parameter verbose is false.

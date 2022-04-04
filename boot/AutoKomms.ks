@@ -5,7 +5,7 @@ core:DoEvent("open terminal").
 
 print "AutoKomms.ks running...".
 
-local ksList is list("psLib", "OrbitLib", "KerbalKomms01").
+local ksList is list("psLib", "FlightLib", "LaunchLib", "OrbitLib", "KerbalKomms01").
 local reloadLibs is true.
 if not HOMECONNECTION:ISCONNECTED {
     print "No comms connection available. Running with existing libraries.".
@@ -25,3 +25,10 @@ for ks in ksList {
     }
 }
 print "Program Terminated.".
+
+for ks in ksList {
+    if VOLUME(1):Exists(ks) {
+        deletepath("1:/" + ks + ".ks").
+    }
+}
+deletepath("1:/boot/AutoKomms.ks").

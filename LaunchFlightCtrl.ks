@@ -4,7 +4,7 @@
 //    LaunchLib.ks, FlightLib.ks, OrbitLib.ks and psLib.ks. 
 
 set autoAntenna to true.
-set orbitAltitude to 87000.
+set orbitAltitude to 85000.
 set lastStageNum to 2.
 set targetRadius to orbitAltitude + KERBIN:radius.
 print "LaunchFlightCtrl.ks Target alt:" + round(orbitAltitude/1000, 3) + "km".
@@ -30,6 +30,7 @@ if SHIP:STATUS = "FLYING" {
 	lock steering to ship:facing. // heading(90, 90).
 	ControlFlight(orbitAltitude, orbitAltitude, flightProfile, 1). // Last engine light stage is #1. Stage 0 is the parachute.
 
+	LOCK STEERING to PROGRADE.
 	LOCK THROTTLE TO 0.
 
 	wait until ship:altitude > 55000.

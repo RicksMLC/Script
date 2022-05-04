@@ -13,9 +13,9 @@
 //  [+] Survive
 //
 // Test and verification:
-//  [ ] Craft enters orbit at required altitude.
-//	[ ] Deorbit executed
-//  [ ] Chutes deployed
+//  [+] Craft enters orbit at required altitude.
+//	[+] Deorbit executed
+//  [+] Chutes deployed
 
 set autoDeOrbit to true.
 set orbitAltitude to 80000.

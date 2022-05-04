@@ -24,11 +24,15 @@ for ks in ksList {
         print "Script ' " + ks + "' not found - skipping.".
     }
 }
-print "Program Terminated.".
 
+print "Purging AutoKomms Scripts.".
 for ks in ksList {
     if VOLUME(1):Exists(ks) {
+        print " x  " + "1:/" + ks + ".ks".
         deletepath("1:/" + ks + ".ks").
     }
 }
+print " x  1:/boot/AutoKomms.ks".
 deletepath("1:/boot/AutoKomms.ks").
+
+print "Program Terminated.".

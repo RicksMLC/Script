@@ -5,7 +5,7 @@ core:DoEvent("open terminal").
 
 print "AutoTourLoad.ks running...".
 
-local ksList is list("psLib", "FlightLib", "OrbitLib", "AutoTour03").
+local ksList is list("psLib", "LaunchLib", "FlightLib", "OrbitLib", "AutoTour04").
 local reloadLibs is true.
 if not HOMECONNECTION:ISCONNECTED {
     print "No comms connection available. Running with existing libraries.".

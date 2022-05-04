@@ -42,7 +42,8 @@ function NullDelegate {}
 
 function SetAllAntennasOn {
 	parameter activate is true.
-	set antennas to ship:partstagged("antenna").
+	parameter tag is "antenna".
+	set antennas to ship:partstagged(tag).
 	if antennas:empty {
 		print "SetAntanna Fail: no tagged 'antenna' parts.".
 		return.
@@ -57,8 +58,8 @@ function SetAllAntennasOn {
 }
 
 function ControlFlight {
-	parameter targetAp.
-	parameter targetAlt.
+	parameter targetAp. 	// Exit ControlFlight when AP >= targetAP
+	parameter targetAlt.	// or alt >= targetAlt.
 	parameter flightProfile. // Queue of List(alt, heading, pitch, throttle)
 	parameter lastStageNum is 0.
 	parameter execDelegate is NullDelegate@. // This delegate must not block: no waiting.

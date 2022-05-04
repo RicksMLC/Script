@@ -72,6 +72,17 @@ function TweakOrbitPeriod {
 	}
 }
 
+function SetKomms {
+	parameter antennaTag.
+	parameter tgt.
+	// Deploy Antennas. From http://ksp-kos.github.io/KOS_DOC/addons/RemoteTech.html#antennas
+	SET P TO SHIP:PARTSTAGGED(antennaTag)[0].
+	SET M to p:GETMODULE("ModuleRTAntenna").
+	M:DOEVENT("activate").
+	M:SETFIELD("target", tgt).
+}
+
+
 wait until ship:unpacked.
 
 print "KerbalKomms01.ks".
@@ -88,53 +99,59 @@ set orbitAltitude to InitLowOrbit.
 set prevStatus to STATUS.
 set throt to 1.
 
-// Kerbal Komms Mk 1 - 0	= KSC long
-//   Komms-0 => Kerbin
-//	 Komms-1 => Kerbal Komms Mk 1 - E
-//	 Komms-2 => Kerbal Komms Mk 1 - W
-
-// Kerbal Komms Mk 1 - E	= east
-//   Komms-0 => Kerbal Komms Mk 1 - 0
-//	 Komms-1 => Kerbal Komms Mk 1 - 1
-
-// Kerbal Komms Mk 1 - W	= west
-//   Komms-0 => Kerbal Komms Mk 1 - 0
-//	 Komms-1 => Kerbal Komms Mk 1 - 1
-
-// Kerbal Komms Mk 1 - 1	= opposite
-//   Komms-0 => Kerbal Komms Mk 1 - E
-//	 Komms-1 => Kerbal Komms Mk 1 - W
-
-
 set kscLng to -74.55.
 set targetLngE to kscLng + 90.
 set targetLngW to kscLng - 90.
 set targetLngOpp to kscLng + 180.
 
-set ship:shipname to "Kerbal Komms Mk 1 - E".
+// Kerbal Komms Mk 1 - 0	= KSC long
+//   Komms-0 => Kerbin
+//	 Komms-1 => Kerbal Komms Mk 1 - E
+//	 Komms-2 => Kerbal Komms Mk 1 - W
+set ship:shipname to "Kerbal Komms Mk 1 - 0".
 set komms0Target to "Kerbin".
-set komms1Target to "Kerbal Komms Mk 1 - 0".
+set komms1Target to "no-target".
 set komms2Target to "no-target".
-//set targetLng to targetLngE.
+set targetLng to kscLng.
 
+set kommsId to "1".
 
-set contractLng to 42.
-set targetLng to contractLng.
+if kommsId = "E" {
+	// Kerbal Komms Mk 1 - E	= east
+	//   Komms-0 => Kerbin
+	//   Komms-1 => Kerbal Komms Mk 1 - 0
+	//	 Komms-2 => Kerbal Komms Mk 1 - 1
+	set ship:shipname to "Kerbal Komms Mk 1 - E".
+	set komms0Target to "Kerbin".
+	set komms1Target to "Kerbal Komms Mk 1 - 0".
+	set komms2Target to "no-target".
+	set targetLng to targetLngE.
+} else if kommsId = "W" {
+	// Kerbal Komms Mk 1 - W	= west
+	//   Komms-0 => Kerbin
+	//   Komms-1 => Kerbal Komms Mk 1 - 0
+	//	 Komms-2 => Kerbal Komms Mk 1 - 1
+	set ship:shipname to "Kerbal Komms Mk 1 - W".
+	set komms0Target to "Kerbin".
+	set komms1Target to "Kerbal Komms Mk 1 - 0".
+	set komms2Target to "no-target".
+	set targetLng to targetLngW.
+} else if kommsId = "1" {
+	// Kerbal Komms Mk 1 - 1	= opposite
+	//   Komms-0 => Kerbin
+	//   Komms-1 => Kerbal Komms Mk 1 - E
+	//	 Komms-2 => Kerbal Komms Mk 1 - W
+	set ship:shipname to "Kerbal Komms Mk 1 - 1".
+	set komms0Target to "Kerbin".
+	set komms1Target to "Kerbal Komms Mk 1 - E".
+	set komms2Target to "Kerbal Komms Mk 1 - W".
+	set targetLng to targetLngOpp.
+}
 
 // For safety reasons...
 IF SHIP:STATUS = "PRELAUNCH" {
     LaunchClamped().
 }
-// FIXME: Remove
-// IF STATUS = "PRELAUNCH" {
-// 	lock throttle to throt.
-// 	print "Counting down:".
-// 	from {local countdown is 10.} until countdown = 0 step {set countdown to countdown -1.} do {
-// 		print ("..." + countdown + "  ") at (0, 3).
-// 		wait 1.
-// 	}
-// 	stage.
-// }
 
 if status = "FLYING" {
     print "Liftoff!".
@@ -335,15 +352,9 @@ IF STATUS = "ORBITING" {
 
 	wait 2.
 	Print "Deploying Antennas.".
-	// Deploy Antennas. From http://ksp-kos.github.io/KOS_DOC/addons/RemoteTech.html#antennas
-	SET P TO SHIP:PARTSTAGGED("Komms-0")[0].
-	SET M to p:GETMODULE("ModuleRTAntenna").
-	M:DOEVENT("activate").
-	M:SETFIELD("target", komms0Target).
-	SET P TO SHIP:PARTSTAGGED("Komms-1")[0].
-	SET M to p:GETMODULE("ModuleRTAntenna").
-	M:DOEVENT("activate").
-	M:SETFIELD("target", komms1Target).
+	SetKomms("Komms-0", komms0Target).
+	SetKomms("Komms-1", komms1Target).
+	SetKomms("Komms-2", komms2Target).
 
 	// Tweak the orbit to have a period of body day (eg Kerbin Day = 6 * 60 * 60).
 	print "Tweaking orbit to body period".

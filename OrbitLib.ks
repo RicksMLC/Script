@@ -231,8 +231,9 @@ function ExecManoeuvreNode {
 	//FIXME: What if we lock to nd:deltav instead?
 	//lock steering to np.
 	lock steering to nd:deltav.
+	rcs on.
 	WaitToFaceVector(nd:deltav, true).
-
+	rcs off.
 	// the ship is facing the right direction, let's wait for our burn time
 	until nd:eta <= (startBurnT) {
 		PrintPairStatus(3, "Wait for burn. ETA", round(nd:eta, 1) + "s", "Start burn", round(nd:eta - (startBurnT), 1) + "s", 30).

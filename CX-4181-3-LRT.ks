@@ -6,7 +6,7 @@ wait until ship:unpacked.
 clearscreen.
 
 lock throttle to 1.0. // 1.0 is the max, 0.0 is idle.
-print "CX-4181-LRT.ks".
+print "CX-4181-4-LRT.ks".
 print "Launch and Recover Test:".
 print " 1) Launch > 1,200m".
 print " 2) Wait until < 1,200m".

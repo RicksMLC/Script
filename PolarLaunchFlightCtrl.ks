@@ -2,7 +2,8 @@
 // Rick's Mid Life Crisis
 
 set autoAntenna to true.
-set orbitAltitude to 80000.
+set orbitAltitude to 300000.
+set fairingDeployAltitude to 50000.
 set lastStageNum to 2.
 set targetRadius to orbitAltitude + KERBIN:radius.
 print "PolarLaunchFlightCtrl.ks Target alt:" + round(orbitAltitude/1000, 3) + "km".
@@ -17,26 +18,25 @@ if SHIP:STATUS = "FLYING" {
 	wait 3.
 	PrintStatus(0, "Liftoff", SHIP:STATUS, true).
 
+	when ship:altitude > fairingDeployAltitude then {
+        DeployFairing("fairing"). 
+        wait 0.1.
+	}
+
    	set flightProfile to Queue(
         List(0,     -10, 80, 1.0),
 		List(300,   -10, 80, 1.0),
 		List(5000,  -10, 70, 1.0),
 		List(15000, -10, 60, 1.0),
         List(25000, -10, 45, 1.0),
-        List(30000, -10, 10, 1.0),
-        List(40000, -10,  0, 1.0)
+        List(30000, -10, 20, 1.0),
+		List(orbitAltitude, -10, 0, 1.0)
 	).
 
-	lock steering to ship:facing. // heading(90, 90).
-	ControlFlight(orbitAltitude, orbitAltitude, flightProfile, 1). // Last engine light stage is #1.
+	lock steering to ship:facing. 
+	ControlFlight(orbitAltitude, orbitAltitude, flightProfile, 0). // Last engine light stage is #1?.
 
 	LOCK THROTTLE TO 0.
-
-	wait until ship:altitude > 55000.
-	DeployFairing("fairing").
-
-	wait until ship:altitude > 70000.
-	kuniverse:timewarp:CancelWarp().
 
     // The atmosphere drag may have lowered the apoapsis, so correct it.
 	if APOAPSIS < orbitAltitude {
